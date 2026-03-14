@@ -6,16 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development
-npm run tauri dev        # Start full app (Rust + Svelte, hot-reload)
-npm run dev              # Start frontend only (no Tauri shell)
+pnpm tauri dev           # Start full app (Rust + Svelte, hot-reload)
+pnpm dev                 # Start frontend only (no Tauri shell)
 
 # Type checking
-npm run check            # Run svelte-check + TypeScript validation
-npm run check:watch      # Watch mode
+pnpm check               # Run svelte-check + TypeScript validation
+pnpm check:watch         # Watch mode
 
 # Build
-npm run tauri build      # Build distributable desktop app
-npm run build            # Build frontend only
+pnpm tauri build         # Build distributable desktop app
+pnpm build               # Build frontend only
 ```
 
 There is no test runner configured yet.
