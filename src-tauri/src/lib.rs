@@ -1,10 +1,13 @@
 use std::process::Command;
+use std::sync::Mutex;
 use tauri::Manager;
 
 const BLOCK_START: &str = "### nelson";
 const BLOCK_END: &str = "### nelson end";
 const HOSTS_PATH: &str = "/etc/hosts";
 const HOSTS_TMP: &str = "/tmp/nelson_hosts_tmp";
+
+static CACHED_PASSWORD: Mutex<Option<String>> = Mutex::new(None);
 
 #[tauri::command]
 fn load_notes(app: tauri::AppHandle) -> Result<String, String> {
@@ -27,24 +30,56 @@ fn save_notes(app: tauri::AppHandle, content: String) -> Result<(), String> {
     std::fs::write(dir.join("notes.txt"), content).map_err(|e| e.to_string())
 }
 
-fn write_hosts_with_sudo(content: &str) -> Result<(), String> {
-    std::fs::write(HOSTS_TMP, content).map_err(|e| e.to_string())?;
+fn osascript_cp(password: &str) -> Result<(), String> {
+    let escaped = password.replace('\\', "\\\\").replace('"', "\\\"");
     let script = format!(
-        r#"do shell script "cp {} {}" with administrator privileges"#,
-        HOSTS_TMP, HOSTS_PATH
+        r#"do shell script "cp {} {}" with administrator privileges password "{}""#,
+        HOSTS_TMP, HOSTS_PATH, escaped
     );
     let output = Command::new("osascript")
         .arg("-e")
         .arg(&script)
         .output()
         .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        if stderr.contains("User canceled") || stderr.contains("(-128)") {
-            return Err("Cancelled".into());
-        }
-        return Err(stderr);
+    if output.status.success() {
+        return Ok(());
     }
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if stderr.contains("User canceled") || stderr.contains("(-128)") {
+        Err("Cancelled".into())
+    } else if stderr.contains("password") || stderr.contains("authorization") || stderr.contains("not authorized") {
+        Err("WrongPassword".into())
+    } else {
+        Err(stderr)
+    }
+}
+
+fn write_hosts_with_sudo(content: &str) -> Result<(), String> {
+    std::fs::write(HOSTS_TMP, content).map_err(|e| e.to_string())?;
+
+    let cached = CACHED_PASSWORD.lock().unwrap().clone();
+    match cached {
+        Some(ref password) => {
+            match osascript_cp(password) {
+                Ok(()) => Ok(()),
+                Err(ref e) if e == "WrongPassword" => {
+                    *CACHED_PASSWORD.lock().unwrap() = None;
+                    Err("NeedPassword".into())
+                }
+                Err(e) => Err(e),
+            }
+        }
+        None => Err("NeedPassword".into()),
+    }
+}
+
+#[tauri::command]
+fn write_blocked_with_password(domains: Vec<String>, password: String) -> Result<(), String> {
+    let hosts = std::fs::read_to_string(HOSTS_PATH).map_err(|e| e.to_string())?;
+    let new_hosts = rebuild_hosts(&hosts, &domains);
+    std::fs::write(HOSTS_TMP, &new_hosts).map_err(|e| e.to_string())?;
+    osascript_cp(&password)?;
+    *CACHED_PASSWORD.lock().unwrap() = Some(password);
     Ok(())
 }
 
@@ -167,6 +202,7 @@ pub fn run() {
             save_notes,
             read_blocked,
             write_blocked,
+            write_blocked_with_password,
             read_domains,
             save_domains,
             get_blocking_status

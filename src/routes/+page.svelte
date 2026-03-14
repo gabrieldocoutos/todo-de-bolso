@@ -16,6 +16,12 @@
   let blockingActive = $state(false);
   let toggling = $state(false);
 
+  // Password modal state
+  let showPasswordModal = $state(false);
+  let pendingPassword = $state('');
+  let pendingDomains = $state<string[]>([]);
+  let passwordError = $state('');
+
   $effect(() => {
     invoke<string>("load_notes").then((text) => {
       content = text;
@@ -48,19 +54,50 @@
 
   async function toggleBlocking() {
     toggling = true;
+    const domains = blockingActive ? [] : blockedDomains;
+    let needModal = false;
     try {
-      if (!blockingActive) {
-        await invoke("write_blocked", { domains: blockedDomains });
-        blockingActive = true;
-      } else {
-        await invoke("write_blocked", { domains: [] });
-        blockingActive = false;
-      }
+      await invoke("write_blocked", { domains });
+      blockingActive = await invoke<boolean>("get_blocking_status");
     } catch (e) {
-      if (e !== "Cancelled") alert("Error: " + e);
+      if (e === "NeedPassword") {
+        needModal = true;
+        pendingDomains = domains;
+        pendingPassword = '';
+        passwordError = '';
+        showPasswordModal = true;
+      } else if (e !== "Cancelled") {
+        alert("Error: " + e);
+      }
     } finally {
-      toggling = false;
+      if (!needModal) toggling = false;
     }
+  }
+
+  async function submitPassword() {
+    passwordError = '';
+    try {
+      await invoke("write_blocked_with_password", { domains: pendingDomains, password: pendingPassword });
+      blockingActive = await invoke<boolean>("get_blocking_status");
+      showPasswordModal = false;
+    } catch (e) {
+      if (e === "WrongPassword") {
+        passwordError = 'Wrong password, try again.';
+      } else if (e !== "Cancelled") {
+        passwordError = String(e);
+      }
+    } finally {
+      if (!showPasswordModal || !passwordError) {
+        pendingPassword = '';
+        toggling = false;
+      }
+    }
+  }
+
+  function cancelPassword() {
+    showPasswordModal = false;
+    pendingPassword = '';
+    toggling = false;
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -115,6 +152,28 @@
     <BlockedWebsites domains={blockedDomains} onSave={saveBlocked} />
   {/if}
 </div>
+
+{#if showPasswordModal}
+  <div class="modal-backdrop" role="presentation" onclick={cancelPassword}>
+    <div class="modal" role="dialog" onclick={(e) => e.stopPropagation()}>
+      <p class="modal-title">Administrator password</p>
+      <p class="modal-sub">Required to modify /etc/hosts. Stored for this session.</p>
+      <input
+        class="modal-input"
+        type="password"
+        placeholder="Password"
+        bind:value={pendingPassword}
+        onkeydown={(e) => e.key === 'Enter' && submitPassword()}
+        autofocus
+      />
+      {#if passwordError}<p class="modal-error">{passwordError}</p>{/if}
+      <div class="modal-actions">
+        <button onclick={cancelPassword}>Cancel</button>
+        <button class="modal-confirm" onclick={submitPassword} disabled={!pendingPassword}>OK</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <button
   class="productivity-switch"
@@ -304,5 +363,77 @@
   .productivity-switch:not(.active):hover .switch-track {
     background: #4a4a4a;
     border-color: #666;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: #0008;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal {
+    background: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    border-radius: 8px;
+    padding: 20px;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 8px 32px #0008;
+    font-family: "Menlo", "Monaco", "Courier New", monospace;
+  }
+
+  .modal-title {
+    font-size: 13px;
+    color: #d4d4d4;
+    font-weight: 600;
+  }
+
+  .modal-sub {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.4;
+  }
+
+  .modal-input {
+    background: #1e1e1e;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #d4d4d4;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+  }
+
+  .modal-input:focus {
+    border-color: #569cd6;
+  }
+
+  .modal-error {
+    font-size: 11px;
+    color: #f48771;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .modal-confirm {
+    background: #569cd6;
+    border-color: #569cd6;
+    color: #fff;
+  }
+
+  .modal-confirm:hover:not(:disabled) {
+    background: #4a8ec2;
   }
 </style>

@@ -160,6 +160,7 @@
     gap: 12px;
     margin-top: 16px;
     padding-top: 12px;
+    padding-right: 84px;
     border-top: 1px solid #3d3d3d;
     flex-shrink: 0;
   }
