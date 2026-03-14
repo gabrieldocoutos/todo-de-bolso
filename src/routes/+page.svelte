@@ -145,6 +145,18 @@
       spellcheck="false"
       autocomplete="off"
       placeholder="Start typing..."
+      onkeydown={(e) => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const el = e.currentTarget;
+          const start = el.selectionStart;
+          const end = el.selectionEnd;
+          content = content.slice(0, start) + '    ' + content.slice(end);
+          requestAnimationFrame(() => {
+            el.selectionStart = el.selectionEnd = start + 4;
+          });
+        }
+      }}
     ></textarea>
   {:else if activeTab === 'pomodoro'}
     <Pomodoro />
