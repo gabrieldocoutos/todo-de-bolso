@@ -1,18 +1,26 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import Pomodoro from "./Pomodoro.svelte";
+  import BlockedWebsites from "./BlockedWebsites.svelte";
 
-  let activeTab = $state<'editor' | 'pomodoro'>('editor');
+  let activeTab = $state<'editor' | 'pomodoro' | 'blocked'>('editor');
 
+  // Editor state
   let content = $state("");
   let savedContent = $state("");
 
   const isDirty = $derived(content !== savedContent);
 
+  // Blocked websites state
+  let blockedDomains = $state<string[]>([]);
+
   $effect(() => {
     invoke<string>("load_notes").then((text) => {
       content = text;
       savedContent = text;
+    });
+    invoke<string[]>("read_blocked").then((domains) => {
+      blockedDomains = domains;
     });
   });
 
@@ -23,6 +31,11 @@
     } catch (e) {
       alert("Could not save: " + e);
     }
+  }
+
+  async function saveBlocked(domains: string[]) {
+    await invoke("write_blocked", { domains });
+    blockedDomains = domains;
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -49,6 +62,11 @@
         class:active={activeTab === 'pomodoro'}
         onclick={() => activeTab = 'pomodoro'}
       >Pomodoro</button>
+      <button
+        class="tab"
+        class:active={activeTab === 'blocked'}
+        onclick={() => activeTab = 'blocked'}
+      >Blocked</button>
     </nav>
 
     {#if activeTab === 'editor'}
@@ -66,8 +84,10 @@
       autocomplete="off"
       placeholder="Start typing..."
     ></textarea>
-  {:else}
+  {:else if activeTab === 'pomodoro'}
     <Pomodoro />
+  {:else}
+    <BlockedWebsites domains={blockedDomains} onSave={saveBlocked} />
   {/if}
 </div>
 
