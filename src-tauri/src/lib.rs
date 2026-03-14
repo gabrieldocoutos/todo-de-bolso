@@ -104,6 +104,40 @@ fn build_block(domains: &[String]) -> String {
 }
 
 #[tauri::command]
+fn read_domains(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("domains.txt");
+    if path.exists() {
+        let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let domains: Vec<String> = text
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+        return Ok(domains);
+    }
+    // Migration: fall back to reading from /etc/hosts on first run
+    let hosts = std::fs::read_to_string(HOSTS_PATH).unwrap_or_default();
+    Ok(parse_block(&hosts))
+}
+
+#[tauri::command]
+fn save_domains(app: tauri::AppHandle, domains: Vec<String>) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("domains.txt"), domains.join("\n")).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_blocking_status() -> bool {
+    let hosts = std::fs::read_to_string(HOSTS_PATH).unwrap_or_default();
+    !parse_block(&hosts).is_empty()
+}
+
+#[tauri::command]
 fn read_blocked() -> Result<Vec<String>, String> {
     let hosts = std::fs::read_to_string(HOSTS_PATH).map_err(|e| e.to_string())?;
     let domains = parse_block(&hosts);
@@ -132,7 +166,10 @@ pub fn run() {
             load_notes,
             save_notes,
             read_blocked,
-            write_blocked
+            write_blocked,
+            read_domains,
+            save_domains,
+            get_blocking_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

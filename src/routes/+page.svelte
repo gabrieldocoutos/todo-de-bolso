@@ -13,14 +13,19 @@
 
   // Blocked websites state
   let blockedDomains = $state<string[]>([]);
+  let blockingActive = $state(false);
+  let toggling = $state(false);
 
   $effect(() => {
     invoke<string>("load_notes").then((text) => {
       content = text;
       savedContent = text;
     });
-    invoke<string[]>("read_blocked").then((domains) => {
+    invoke<string[]>("read_domains").then((domains) => {
       blockedDomains = domains;
+    });
+    invoke<boolean>("get_blocking_status").then((active) => {
+      blockingActive = active;
     });
   });
 
@@ -34,8 +39,28 @@
   }
 
   async function saveBlocked(domains: string[]) {
-    await invoke("write_blocked", { domains });
+    await invoke("save_domains", { domains });
     blockedDomains = domains;
+    if (blockingActive) {
+      await invoke("write_blocked", { domains });
+    }
+  }
+
+  async function toggleBlocking() {
+    toggling = true;
+    try {
+      if (!blockingActive) {
+        await invoke("write_blocked", { domains: blockedDomains });
+        blockingActive = true;
+      } else {
+        await invoke("write_blocked", { domains: [] });
+        blockingActive = false;
+      }
+    } catch (e) {
+      if (e !== "Cancelled") alert("Error: " + e);
+    } finally {
+      toggling = false;
+    }
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -90,6 +115,19 @@
     <BlockedWebsites domains={blockedDomains} onSave={saveBlocked} />
   {/if}
 </div>
+
+<button
+  class="productivity-switch"
+  class:active={blockingActive}
+  class:toggling
+  onclick={toggleBlocking}
+  disabled={toggling}
+  title={blockingActive ? 'Productivity mode on' : 'Productivity mode off'}
+>
+  <span class="switch-track">
+    <span class="switch-knob"></span>
+  </span>
+</button>
 
 <style>
   * {
@@ -206,5 +244,65 @@
 
   textarea::placeholder {
     color: #555;
+  }
+
+  .productivity-switch {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 100;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 999px;
+    box-shadow: none;
+  }
+
+  .productivity-switch:hover:not(:disabled) {
+    background: none;
+  }
+
+  .productivity-switch:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .switch-track {
+    display: flex;
+    align-items: center;
+    width: 52px;
+    height: 28px;
+    border-radius: 999px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    padding: 3px;
+    transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+    position: relative;
+  }
+
+  .switch-knob {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #888;
+    transition: transform 0.22s ease, background 0.22s ease;
+    flex-shrink: 0;
+  }
+
+  .productivity-switch.active .switch-track {
+    background: #4ec9b0;
+    border-color: #4ec9b0;
+    box-shadow: 0 0 14px #4ec9b055, 0 2px 8px #0006;
+  }
+
+  .productivity-switch.active .switch-knob {
+    transform: translateX(24px);
+    background: #fff;
+  }
+
+  .productivity-switch:not(.active):hover .switch-track {
+    background: #4a4a4a;
+    border-color: #666;
   }
 </style>
