@@ -1,6 +1,10 @@
 use std::process::Command;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 
 const BLOCK_START: &str = "### nelson";
 const BLOCK_END: &str = "### nelson end";
@@ -167,6 +171,14 @@ fn save_domains(app: tauri::AppHandle, domains: Vec<String>) -> Result<(), Strin
 }
 
 #[tauri::command]
+fn update_tray_title(app: tauri::AppHandle, title: String) -> Result<(), String> {
+    if let Some(tray) = app.tray_by_id("main") {
+        tray.set_title(Some(title.as_str())).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_blocking_status() -> bool {
     let hosts = std::fs::read_to_string(HOSTS_PATH).unwrap_or_default();
     !parse_block(&hosts).is_empty()
@@ -196,6 +208,48 @@ fn write_blocked(domains: Vec<String>) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
+            let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+            let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
+
+            let _tray = TrayIconBuilder::with_id("main")
+                .menu(&menu)
+                .icon(app.default_window_icon().unwrap().clone())
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                window.hide().unwrap();
+                            } else {
+                                window.show().unwrap();
+                                window.set_focus().unwrap();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             load_notes,
@@ -205,7 +259,8 @@ pub fn run() {
             write_blocked_with_password,
             read_domains,
             save_domains,
-            get_blocking_status
+            get_blocking_status,
+            update_tray_title
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

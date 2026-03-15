@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
+
   const WORK_DURATION = 25 * 60;
   const BREAK_DURATION = 5 * 60;
   const ROUND_SIZE = 4;
@@ -11,6 +13,24 @@
   const minutes = $derived(String(Math.floor(remaining / 60)).padStart(2, '0'));
   const seconds = $derived(String(remaining % 60).padStart(2, '0'));
   const doneInRound = $derived(completedSessions % ROUND_SIZE);
+
+  const WORK_FULL = WORK_DURATION;
+  const BREAK_FULL = BREAK_DURATION;
+
+  $effect(() => {
+    const isIdleWork = !running && mode === 'work' && remaining === WORK_FULL;
+    const isIdleBreak = !running && mode === 'break' && remaining === BREAK_FULL;
+    const isIdle = isIdleWork || isIdleBreak;
+    let title: string;
+    if (isIdle) {
+      title = '';
+    } else if (running) {
+      title = `${minutes}:${seconds}`;
+    } else {
+      title = `⏸ ${minutes}:${seconds}`;
+    }
+    invoke('update_tray_title', { title });
+  });
 
   $effect(() => {
     if (!running) return;
