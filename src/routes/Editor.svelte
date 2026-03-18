@@ -3,11 +3,13 @@
 
   let { isDirty = $bindable(false), isActive }: { isDirty?: boolean; isActive: boolean } = $props();
 
-  let notes = $state<string[]>([]);
-  let activeNote = $state<string | null>(null);
+  type Note = { id: string; name: string };
+
+  let notes = $state<Note[]>([]);
+  let activeNote = $state<Note | null>(null);
   let content = $state("");
   let savedContent = $state("");
-  let renamingNote = $state<string | null>(null);
+  let renamingNote = $state<Note | null>(null);
   let renameValue = $state("");
 
   $effect(() => {
@@ -15,18 +17,18 @@
   });
 
   $effect(() => {
-    invoke<string[]>("list_notes").then((list) => {
+    invoke<Note[]>("list_notes").then((list) => {
       notes = list;
       if (list.length > 0) selectNote(list[0]);
     });
   });
 
-  async function selectNote(name: string) {
-    if (activeNote !== null && activeNote !== name && content !== savedContent) {
-      await invoke("save_note", { name: activeNote, content });
+  async function selectNote(note: Note) {
+    if (activeNote !== null && activeNote.id !== note.id && content !== savedContent) {
+      await invoke("save_note", { id: activeNote.id, name: activeNote.name, content });
     }
-    activeNote = name;
-    const text = await invoke<string>("load_note", { name });
+    activeNote = note;
+    const text = await invoke<string>("load_note", { id: note.id });
     content = text;
     savedContent = text;
   }
@@ -34,7 +36,7 @@
   async function save() {
     if (!activeNote) return;
     try {
-      await invoke("save_note", { name: activeNote, content });
+      await invoke("save_note", { id: activeNote.id, name: activeNote.name, content });
       savedContent = content;
     } catch (e) {
       alert("Could not save: " + e);
@@ -43,46 +45,44 @@
 
   async function createNote() {
     try {
-      const name = await invoke<string>("create_note", { name: "" });
-      notes = await invoke<string[]>("list_notes");
-      await selectNote(name);
+      const note = await invoke<Note>("create_note", { name: "" });
+      notes = [...notes, note];
+      await selectNote(note);
     } catch (e) {
       alert("Could not create note: " + e);
     }
   }
 
-  async function deleteNote(name: string, e: MouseEvent) {
+  async function deleteNote(note: Note, e: MouseEvent) {
     e.stopPropagation();
     if (notes.length <= 1) return;
     try {
-      await invoke("delete_note", { name });
-      const remaining = notes.filter(n => n !== name);
+      await invoke("delete_note", { id: note.id });
+      const remaining = notes.filter(n => n.id !== note.id);
       notes = remaining;
-      if (activeNote === name) await selectNote(remaining[0]);
+      if (activeNote?.id === note.id) await selectNote(remaining[0]);
     } catch (e) {
       alert("Could not delete: " + e);
     }
   }
 
-  function startRename(name: string) {
-    renamingNote = name;
-    renameValue = name;
+  function startRename(note: Note) {
+    renamingNote = note;
+    renameValue = note.name;
   }
 
   async function confirmRename() {
     if (!renamingNote) return;
     const trimmed = renameValue.trim();
-    if (!trimmed || trimmed === renamingNote) {
+    if (!trimmed || trimmed === renamingNote.name) {
       renamingNote = null;
       return;
     }
     try {
-      await invoke("rename_note", { oldName: renamingNote, newName: trimmed });
-      const idx = notes.indexOf(renamingNote);
-      const updated = [...notes];
-      updated[idx] = trimmed;
-      notes = updated;
-      if (activeNote === renamingNote) activeNote = trimmed;
+      await invoke("rename_note", { id: renamingNote.id, newName: trimmed });
+      const updated = { ...renamingNote, name: trimmed };
+      notes = notes.map(n => n.id === renamingNote!.id ? updated : n);
+      if (activeNote?.id === renamingNote.id) activeNote = updated;
     } catch (e) {
       alert("Could not rename: " + e);
     }
@@ -111,9 +111,9 @@
       <button class="new-btn" onclick={createNote} title="New note">+</button>
     </div>
     <ul class="note-list">
-      {#each notes as name (name)}
-        <li class="note-item" class:active={activeNote === name}>
-          {#if renamingNote === name}
+      {#each notes as note (note.id)}
+        <li class="note-item" class:active={activeNote?.id === note.id}>
+          {#if renamingNote?.id === note.id}
             <input
               class="rename-input"
               bind:value={renameValue}
@@ -127,16 +127,16 @@
           {:else}
             <button
               class="note-btn"
-              onclick={() => selectNote(name)}
-              ondblclick={() => startRename(name)}
+              onclick={() => selectNote(note)}
+              ondblclick={() => startRename(note)}
             >
-              <span class="note-name">{name}</span>
-              {#if activeNote === name && isDirty}
+              <span class="note-name">{note.name}</span>
+              {#if activeNote?.id === note.id && isDirty}
                 <span class="dirty-dot">•</span>
               {/if}
             </button>
             {#if notes.length > 1}
-              <button class="del-btn" onclick={(e) => deleteNote(name, e)} title="Delete">×</button>
+              <button class="del-btn" onclick={(e) => deleteNote(note, e)} title="Delete">×</button>
             {/if}
           {/if}
         </li>
