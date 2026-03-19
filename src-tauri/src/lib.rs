@@ -51,226 +51,123 @@ const HOSTS_TMP: &str = "/tmp/nelson_hosts_tmp";
 
 static CACHED_PASSWORD: Mutex<Option<String>> = Mutex::new(None);
 
-const NOTES_FOLDER: &str = "Produtividade de Bolso";
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct NoteInfo {
-    id: String,
-    name: String,
+fn notes_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("notes");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
 }
 
-async fn run_applescript(script: String) -> Result<String, String> {
-    let output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new("osascript").arg("-e").arg(&script).output()
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-fn write_tmp(name: &str, content: &str) -> Result<String, String> {
-    let path = std::env::temp_dir().join(name);
-    std::fs::write(&path, content).map_err(|e| e.to_string())?;
-    Ok(path.to_str().unwrap().to_string())
-}
-
-async fn notes_ensure_folder() -> Result<(), String> {
-    let script = format!(
-        r#"tell application "Notes"
-    tell account "iCloud"
-        if not (exists folder "{}") then
-            make new folder with properties {{name: "{}"}}
-        end if
-    end tell
-end tell"#,
-        NOTES_FOLDER, NOTES_FOLDER
-    );
-    run_applescript(script).await?;
-    Ok(())
-}
-
-async fn notes_list() -> Result<Vec<NoteInfo>, String> {
-    let script = format!(
-        r#"tell application "Notes"
-    set output to ""
-    try
-        set theFolder to folder "{}" of account "iCloud"
-        set noteList to notes of theFolder
-        repeat with n in noteList
-            set noteName to name of n as string
-            if noteName is not "" then
-                set output to output & (id of n as string) & (ASCII character 0) & noteName & (ASCII character 1)
-            end if
-        end repeat
-    end try
-    return output
-end tell"#,
-        NOTES_FOLDER
-    );
-    let raw = run_applescript(script).await?;
-    let mut notes = Vec::new();
-    if !raw.is_empty() {
-        for record in raw.split('\u{01}') {
-            if record.is_empty() {
-                continue;
-            }
-            if let Some(sep) = record.find('\u{00}') {
-                notes.push(NoteInfo {
-                    id: record[..sep].to_string(),
-                    name: record[sep + 1..].to_string(),
-                });
-            }
-        }
-    }
-    Ok(notes)
-}
-
-async fn notes_get_raw(id: &str) -> Result<String, String> {
-    let script = format!(
-        r#"tell application "Notes"
-    return plaintext of (note id "{}")
-end tell"#,
-        id
-    );
-    run_applescript(script).await
-}
-
-async fn notes_create(name: &str) -> Result<String, String> {
-    let tmp = write_tmp("notes_create_title.txt", name)?;
-    let script = format!(
-        r#"tell application "Notes"
-    set titleStr to read POSIX file "{}" as «class utf8»
-    set newNote to make new note at folder "{}" of account "iCloud" with properties {{body: titleStr}}
-    return id of newNote as string
-end tell"#,
-        tmp, NOTES_FOLDER
-    );
-    run_applescript(script).await
-}
-
-async fn notes_update(id: &str, body: &str) -> Result<(), String> {
-    let tmp = write_tmp("notes_update_body.txt", body)?;
-    let script = format!(
-        r#"tell application "Notes"
-    set n to note id "{}"
-    set fileContent to read POSIX file "{}" as «class utf8»
-    set body of n to fileContent
-end tell"#,
-        id, tmp
-    );
-    run_applescript(script).await?;
-    Ok(())
-}
-
-async fn notes_delete(id: &str) -> Result<(), String> {
-    let script = format!(
-        r#"tell application "Notes"
-    delete (note id "{}")
-end tell"#,
-        id
-    );
-    run_applescript(script).await?;
-    Ok(())
-}
-
-fn strip_title_line(full_text: &str) -> String {
-    if let Some(pos) = full_text.find("\n\n") {
-        full_text[pos + 2..].to_string()
-    } else if let Some(pos) = full_text.find('\n') {
-        full_text[pos + 1..].to_string()
-    } else {
-        String::new()
-    }
-}
-
-async fn migrate_notes_to_mac(app: &tauri::AppHandle) {
+fn migrate_legacy_notes(app: &tauri::AppHandle) {
     let data_dir = match app.path().app_data_dir() {
         Ok(d) => d,
         Err(_) => return,
     };
-    let notes_dir = data_dir.join("notes");
-    if !notes_dir.exists() || data_dir.join("notes_migrated").exists() {
+    let legacy = data_dir.join("notes.txt");
+    if !legacy.exists() {
         return;
     }
-    let entries = match std::fs::read_dir(&notes_dir) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("txt") {
-            continue;
+    let notes_subdir = data_dir.join("notes");
+    if std::fs::create_dir_all(&notes_subdir).is_ok() {
+        let dest = notes_subdir.join("Notes.txt");
+        if !dest.exists() {
+            let _ = std::fs::copy(&legacy, &dest);
         }
-        let name = match path.file_stem().and_then(|s| s.to_str()) {
-            Some(n) => n.to_string(),
-            None => continue,
-        };
-        let content = std::fs::read_to_string(&path).unwrap_or_default();
-        let id = match notes_create(&name).await {
-            Ok(id) => id,
-            Err(_) => continue,
-        };
-        if !content.is_empty() {
-            let _ = notes_update(&id, &format!("{}\n\n{}", name, content)).await;
-        }
+        let _ = std::fs::remove_file(&legacy);
     }
-    let _ = std::fs::rename(&notes_dir, data_dir.join("notes_migrated"));
 }
 
-#[tauri::command]
-async fn list_notes(app: tauri::AppHandle) -> Result<Vec<NoteInfo>, String> {
-    notes_ensure_folder().await?;
-    migrate_notes_to_mac(&app).await;
-    let mut notes = notes_list().await?;
-    if notes.is_empty() {
-        let id = notes_create("Notes").await?;
-        notes = vec![NoteInfo {
-            id,
-            name: "Notes".to_string(),
-        }];
+fn sanitize_name(name: &str) -> Result<String, String> {
+    let s = name.trim().to_string();
+    if s.is_empty() {
+        return Err("Note name cannot be empty".into());
     }
-    Ok(notes)
+    if s.contains('/') || s.contains('\\') || s.contains('\0') || s.starts_with('.') {
+        return Err("Invalid note name".into());
+    }
+    Ok(s)
 }
 
 #[tauri::command]
-async fn load_note(id: String) -> Result<String, String> {
-    let full_text = notes_get_raw(&id).await?;
-    Ok(strip_title_line(&full_text))
+fn list_notes(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    migrate_legacy_notes(&app);
+    let dir = notes_dir(&app)?;
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name();
+            let name_str = name.to_str()?.to_string();
+            name_str.strip_suffix(".txt").map(|s| s.to_string())
+        })
+        .collect();
+    names.sort();
+    if names.is_empty() {
+        std::fs::write(dir.join("Notes.txt"), "").map_err(|e| e.to_string())?;
+        names.push("Notes".to_string());
+    }
+    Ok(names)
 }
 
 #[tauri::command]
-async fn save_note(id: String, name: String, content: String) -> Result<(), String> {
-    notes_update(&id, &format!("{}\n\n{}", name, content)).await
+fn load_note(app: tauri::AppHandle, name: String) -> Result<String, String> {
+    let path = notes_dir(&app)?.join(format!("{}.txt", name));
+    if path.exists() {
+        std::fs::read_to_string(path).map_err(|e| e.to_string())
+    } else {
+        Ok(String::new())
+    }
 }
 
 #[tauri::command]
-async fn create_note(name: String) -> Result<NoteInfo, String> {
-    let note_name = if name.trim().is_empty() {
+fn save_note(app: tauri::AppHandle, name: String, content: String) -> Result<(), String> {
+    let dir = notes_dir(&app)?;
+    std::fs::write(dir.join(format!("{}.txt", name)), content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_note(app: tauri::AppHandle, name: String) -> Result<String, String> {
+    let dir = notes_dir(&app)?;
+    let base = if name.trim().is_empty() {
         "Note".to_string()
     } else {
-        name
+        sanitize_name(&name)?
     };
-    let id = notes_create(&note_name).await?;
-    Ok(NoteInfo {
-        id,
-        name: note_name,
-    })
+    let mut candidate = base.clone();
+    let mut i = 2usize;
+    loop {
+        let path = dir.join(format!("{}.txt", candidate));
+        if !path.exists() {
+            std::fs::write(&path, "").map_err(|e| e.to_string())?;
+            return Ok(candidate);
+        }
+        candidate = format!("{} {}", base, i);
+        i += 1;
+    }
 }
 
 #[tauri::command]
-async fn delete_note(id: String) -> Result<(), String> {
-    notes_delete(&id).await
+fn delete_note(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    let path = notes_dir(&app)?.join(format!("{}.txt", name));
+    if path.exists() {
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
-async fn rename_note(id: String, new_name: String) -> Result<(), String> {
-    let full_text = notes_get_raw(&id).await?;
-    let content = strip_title_line(&full_text);
-    notes_update(&id, &format!("{}\n\n{}", new_name, content)).await
+fn rename_note(app: tauri::AppHandle, old_name: String, new_name: String) -> Result<(), String> {
+    let new_name = sanitize_name(&new_name)?;
+    let dir = notes_dir(&app)?;
+    let old_path = dir.join(format!("{}.txt", old_name));
+    let new_path = dir.join(format!("{}.txt", new_name));
+    if new_path.exists() {
+        return Err("A note with that name already exists".into());
+    }
+    std::fs::rename(old_path, new_path).map_err(|e| e.to_string())
 }
 
 fn osascript_cp(password: &str) -> Result<(), String> {

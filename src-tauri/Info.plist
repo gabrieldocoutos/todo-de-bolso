@@ -4,7 +4,5 @@
 <dict>
     <key>NSRemindersUsageDescription</key>
     <string>Used to show your pending reminders in the app.</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Used to read and write notes in the Notes app.</string>
 </dict>
 </plist>
