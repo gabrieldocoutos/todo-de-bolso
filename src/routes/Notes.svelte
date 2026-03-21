@@ -100,6 +100,17 @@
       e.preventDefault();
       save();
     }
+    if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+      e.preventDefault();
+      createNote();
+    }
+    if (e.ctrlKey && !e.metaKey) {
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= notes.length) {
+        e.preventDefault();
+        selectNote(notes[num - 1]);
+      }
+    }
   }
 </script>
 

@@ -1,10 +1,26 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { listen } from "@tauri-apps/api/event";
   import Notes from "./Notes.svelte";
   import Pomodoro from "./Pomodoro.svelte";
   import BlockedWebsites from "./BlockedWebsites.svelte";
   import Reminders from "./Reminders.svelte";
   let activeTab = $state<'notes' | 'pomodoro' | 'blocked' | 'reminders'>('notes');
+  const tabs: Array<typeof activeTab> = ['notes', 'pomodoro', 'blocked', 'reminders'];
+
+  function onTabKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (showQuitModal) { cancelQuit(); return; }
+      if (showPasswordModal) { cancelPassword(); return; }
+    }
+    if (!e.metaKey) return;
+    const num = parseInt(e.key);
+    if (num >= 1 && num <= tabs.length) {
+      e.preventDefault();
+      activeTab = tabs[num - 1];
+    }
+  }
 
   let notesDirty = $state(false);
 
@@ -18,6 +34,31 @@
   let pendingPassword = $state('');
   let pendingDomains = $state<string[]>([]);
   let passwordError = $state('');
+
+  // Quit confirmation modal
+  let showQuitModal = $state(false);
+
+  $effect(() => {
+    const unlistenClose = getCurrentWindow().onCloseRequested((e) => {
+      e.preventDefault();
+      showQuitModal = true;
+    });
+    const unlistenTrayQuit = listen('quit-requested', () => {
+      showQuitModal = true;
+    });
+    return () => {
+      unlistenClose.then((fn) => fn());
+      unlistenTrayQuit.then((fn) => fn());
+    };
+  });
+
+  function confirmQuit() {
+    invoke('app_exit');
+  }
+
+  function cancelQuit() {
+    showQuitModal = false;
+  }
 
   $effect(() => {
     invoke<string[]>("read_domains").then((domains) => {
@@ -85,6 +126,8 @@
   }
 </script>
 
+<svelte:window onkeydown={onTabKeyDown} />
+
 <div class="app">
   <header data-tauri-drag-region>
     <nav>
@@ -111,24 +154,27 @@
       >Reminders</button>
     </nav>
 
-  <button
-    class="productivity-switch"
-    class:active={blockingActive}
-    class:toggling
-    onclick={toggleBlocking}
-    disabled={toggling}
-    title={blockingActive ? 'Productivity mode on' : 'Productivity mode off'}
-  >
-    <span class="switch-track">
-      <span class="switch-knob"></span>
-    </span>
-  </button>
+  <div class="productivity-toggle">
+    <span class="toggle-label">{blockingActive ? 'Focus ON' : 'Focus'}</span>
+    <button
+      class="productivity-switch"
+      class:active={blockingActive}
+      class:toggling
+      onclick={toggleBlocking}
+      disabled={toggling}
+      title={blockingActive ? 'Distracting sites are blocked' : 'Click to block distracting sites'}
+    >
+      <span class="switch-track">
+        <span class="switch-knob"></span>
+      </span>
+    </button>
+  </div>
   </header>
 
   {#if activeTab === 'notes'}
     <Notes bind:isDirty={notesDirty} isActive={true} />
   {:else if activeTab === 'pomodoro'}
-    <Pomodoro />
+    <Pomodoro isActive={true} />
   {:else if activeTab === 'blocked'}
     <BlockedWebsites domains={blockedDomains} onSave={saveBlocked} />
   {:else}
@@ -157,18 +203,18 @@
   </div>
 {/if}
 
-<button
-  class="productivity-switch"
-  class:active={blockingActive}
-  class:toggling
-  onclick={toggleBlocking}
-  disabled={toggling}
-  title={blockingActive ? 'Productivity mode on' : 'Productivity mode off'}
->
-  <span class="switch-track">
-    <span class="switch-knob"></span>
-  </span>
-</button>
+{#if showQuitModal}
+  <div class="modal-backdrop" role="presentation" onclick={cancelQuit}>
+    <div class="modal" role="dialog" onclick={(e) => e.stopPropagation()}>
+      <p class="modal-title">Quit application?</p>
+      <p class="modal-sub">Are you sure you want to close the app?</p>
+      <div class="modal-actions">
+        <button onclick={cancelQuit}>Cancel</button>
+        <button class="modal-confirm modal-confirm--danger" onclick={confirmQuit}>Quit</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   * {
@@ -260,12 +306,31 @@
     cursor: default;
   }
 
-  .productivity-switch {
+  .productivity-toggle {
     margin-left: auto;
     margin-right: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+
+  .toggle-label {
+    font-size: 10px;
+    color: #555;
+    letter-spacing: 0.03em;
+    transition: color 0.22s ease;
+    white-space: nowrap;
+  }
+
+  .productivity-toggle:has(.productivity-switch.active) .toggle-label {
+    color: #4ec9b0;
+  }
+
+  .productivity-switch {
     background: none;
     border: none;
-    padding: 0 0 4px 0;
+    padding: 0;
     cursor: pointer;
     border-radius: 999px;
     box-shadow: none;
@@ -388,5 +453,14 @@
 
   .modal-confirm:hover:not(:disabled) {
     background: #3dab96;
+  }
+
+  .modal-confirm--danger {
+    background: #e05050;
+    border-color: #e05050;
+  }
+
+  .modal-confirm--danger:hover:not(:disabled) {
+    background: #c43e3e;
   }
 </style>

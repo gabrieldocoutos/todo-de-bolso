@@ -603,6 +603,11 @@ fn pomodoro_skip_break(app: tauri::AppHandle, state: tauri::State<PomodoroShared
     app.emit("pomodoro-tick", &s).ok();
 }
 
+#[tauri::command]
+fn app_exit(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pomodoro: PomodoroShared = Arc::new(Mutex::new(PomodoroState {
@@ -632,7 +637,11 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        app.exit(0);
+                        if let Some(window) = app.get_webview_window("main") {
+                            window.show().ok();
+                            window.set_focus().ok();
+                        }
+                        app.emit("quit-requested", ()).ok();
                     }
                     _ => {}
                 })
@@ -756,6 +765,7 @@ pub fn run() {
             delete_task,
             reset_task_time,
             set_active_task,
+            app_exit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

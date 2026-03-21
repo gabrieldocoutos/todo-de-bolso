@@ -3,6 +3,8 @@
   import { listen } from "@tauri-apps/api/event";
   import { onDestroy } from "svelte";
 
+  let { isActive }: { isActive: boolean } = $props();
+
   const ROUND_SIZE = 4;
 
   let mode = $state<"work" | "break">("work");
@@ -56,11 +58,13 @@
     (await unlisten)();
   });
 
-  function toggle() {
-    invoke("pomodoro_toggle");
+  async function toggle() {
+    await invoke("pomodoro_toggle");
+    tasks = await invoke<Task[]>("get_tasks");
   }
-  function reset() {
-    invoke("pomodoro_reset");
+  async function reset() {
+    await invoke("pomodoro_reset");
+    tasks = await invoke<Task[]>("get_tasks");
   }
   function skipBreak() {
     invoke("pomodoro_skip_break");
@@ -126,7 +130,19 @@
     const sec = s % 60;
     return `${m}:${String(sec).padStart(2, "0")}`;
   }
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (!isActive) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    if (e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  }
 </script>
+
+<svelte:window onkeydown={onKeyDown} />
 
 <div class="pomodoro">
   <!-- Timer section -->
