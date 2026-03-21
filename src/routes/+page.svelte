@@ -1,12 +1,12 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import Editor from "./Editor.svelte";
+  import Notes from "./Notes.svelte";
   import Pomodoro from "./Pomodoro.svelte";
   import BlockedWebsites from "./BlockedWebsites.svelte";
   import Reminders from "./Reminders.svelte";
-  let activeTab = $state<'editor' | 'pomodoro' | 'blocked' | 'reminders'>('editor');
+  let activeTab = $state<'notes' | 'pomodoro' | 'blocked' | 'reminders'>('notes');
 
-  let editorDirty = $state(false);
+  let notesDirty = $state(false);
 
   // Blocked websites state
   let blockedDomains = $state<string[]>([]);
@@ -90,10 +90,10 @@
     <nav>
       <button
         class="tab"
-        class:active={activeTab === 'editor'}
-        onclick={() => activeTab = 'editor'}
-      >Editor
-      <span class="filename">{editorDirty ? ' •' : ''}</span></button>
+        class:active={activeTab === 'notes'}
+        onclick={() => activeTab = 'notes'}
+      >Notes
+      <span class="filename">{notesDirty ? ' •' : ''}</span></button>
       <button
         class="tab"
         class:active={activeTab === 'pomodoro'}
@@ -125,8 +125,8 @@
   </button>
   </header>
 
-  {#if activeTab === 'editor'}
-    <Editor bind:isDirty={editorDirty} isActive={true} />
+  {#if activeTab === 'notes'}
+    <Notes bind:isDirty={notesDirty} isActive={true} />
   {:else if activeTab === 'pomodoro'}
     <Pomodoro />
   {:else if activeTab === 'blocked'}

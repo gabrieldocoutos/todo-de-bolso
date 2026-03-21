@@ -7,12 +7,12 @@
     onSave: (domains: string[]) => Promise<void>;
   } = $props();
 
-  let local = $state<string[]>([...domains]);
+  let local = $state<string[]>([]);
   let newDomain = $state("");
   let saving = $state(false);
   let error = $state<string | null>(null);
 
-  // Sync local copy when parent domains change (initial load)
+  // Sync local copy when parent domains change (including initial load)
   $effect(() => {
     local = [...domains];
   });
