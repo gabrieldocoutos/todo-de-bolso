@@ -1,10 +1,10 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
 
-  type Reminder = { id: string; title: string };
+  type Reminder = { id: number; title: string };
 
   let reminders = $state<Reminder[]>([]);
-  let completing = $state(new Set<string>());
+  let completing = $state(new Set<number>());
   let loading = $state(false);
   let error = $state('');
   let newTitle = $state('');
@@ -37,7 +37,7 @@
     }
   }
 
-  async function complete(id: string) {
+  async function complete(id: number) {
     completing = new Set([...completing, id]);
     try {
       await invoke("complete_reminder", { id });
@@ -61,11 +61,6 @@
       disabled={creating}
     />
     <button type="submit" class="add-btn" disabled={creating || !newTitle.trim()}>Add</button>
-    <button type="button" class="refresh-btn" onclick={load} disabled={loading} title="Refresh">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.05-3.38L10 6h5V1l-1.35 1.35Z" fill="currentColor"/>
-      </svg>
-    </button>
   </form>
 
   <div class="toolbar">
@@ -137,29 +132,6 @@
 
   .add-btn:hover:not(:disabled) {
     background: #3dab96;
-  }
-
-  .refresh-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: #666;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-
-  .refresh-btn:hover:not(:disabled) {
-    background: #2a2a2a;
-    color: #aaa;
-  }
-
-  .refresh-btn:disabled {
-    opacity: 0.3;
   }
 
   .toolbar {

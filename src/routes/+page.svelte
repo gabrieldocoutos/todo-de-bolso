@@ -29,6 +29,9 @@
   let blockingActive = $state(false);
   let toggling = $state(false);
 
+  // Track whether focus was auto-activated by pomodoro
+  let focusAutoActivated = $state(false);
+
   // Password modal state
   let showPasswordModal = $state(false);
   let pendingPassword = $state('');
@@ -69,6 +72,23 @@
     });
   });
 
+  // Auto-activate focus when pomodoro is running in work mode
+  let prevPomodoroWork = $state(false);
+  $effect(() => {
+    const unlisten = listen<{running: boolean; mode: string}>('pomodoro-tick', (event) => {
+      const isWorking = event.payload.running && event.payload.mode === 'work';
+      if (isWorking && !prevPomodoroWork && !blockingActive && !toggling) {
+        focusAutoActivated = true;
+        toggleBlocking(true);
+      } else if (!isWorking && prevPomodoroWork && blockingActive && focusAutoActivated && !toggling) {
+        focusAutoActivated = false;
+        toggleBlocking(true);
+      }
+      prevPomodoroWork = isWorking;
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  });
+
   async function saveBlocked(domains: string[]) {
     await invoke("save_domains", { domains });
     blockedDomains = domains;
@@ -77,8 +97,12 @@
     }
   }
 
-  async function toggleBlocking() {
+  async function toggleBlocking(auto = false) {
     toggling = true;
+    if (!auto && blockingActive) {
+      // Manual deactivation clears auto flag
+      focusAutoActivated = false;
+    }
     const domains = blockingActive ? [] : blockedDomains;
     let needModal = false;
     try {
@@ -160,7 +184,7 @@
       class="productivity-switch"
       class:active={blockingActive}
       class:toggling
-      onclick={toggleBlocking}
+      onclick={() => toggleBlocking()}
       disabled={toggling}
       title={blockingActive ? 'Distracting sites are blocked' : 'Click to block distracting sites'}
     >

@@ -11,7 +11,7 @@ const BREAK_SECS: u32 = 5 * 60;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Reminder {
-    id: String,
+    id: i64,
     title: String,
 }
 
@@ -345,37 +345,48 @@ fn write_blocked(domains: Vec<String>) -> Result<(), String> {
     write_hosts_with_sudo(&new_hosts)
 }
 
-async fn run_sidecar(app: &tauri::AppHandle, args: &[&str]) -> Result<String, String> {
-    use tauri_plugin_shell::ShellExt;
-    let output = app
-        .shell()
-        .sidecar("reminders-helper")
-        .map_err(|e| e.to_string())?
-        .args(args)
-        .output()
-        .await
+#[tauri::command]
+fn get_reminders(db: tauri::State<DbShared>) -> Result<Vec<Reminder>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, title FROM reminders WHERE completed = 0 ORDER BY created_at ASC")
         .map_err(|e| e.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    let reminders = stmt
+        .query_map([], |row| {
+            Ok(Reminder {
+                id: row.get(0)?,
+                title: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(reminders)
+}
+
+#[tauri::command]
+fn create_reminder(db: tauri::State<DbShared>, title: String) -> Result<(), String> {
+    let title = title.trim().to_string();
+    if title.is_empty() {
+        return Err("Title cannot be empty".into());
     }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-#[tauri::command]
-async fn get_reminders(app: tauri::AppHandle) -> Result<Vec<Reminder>, String> {
-    let json = run_sidecar(&app, &["list"]).await?;
-    serde_json::from_str::<Vec<Reminder>>(&json).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn create_reminder(app: tauri::AppHandle, title: String) -> Result<(), String> {
-    run_sidecar(&app, &["create", &title]).await?;
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO reminders (title) VALUES (?1)",
+        rusqlite::params![title],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-async fn complete_reminder(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    run_sidecar(&app, &["complete", &id]).await?;
+fn complete_reminder(db: tauri::State<DbShared>, id: i64) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE reminders SET completed = 1 WHERE id = ?1",
+        rusqlite::params![id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -675,6 +686,12 @@ pub fn run() {
                      title        TEXT    NOT NULL,
                      total_seconds INTEGER NOT NULL DEFAULT 0,
                      created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+                 );
+                 CREATE TABLE IF NOT EXISTS reminders (
+                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                     title      TEXT    NOT NULL,
+                     completed  INTEGER NOT NULL DEFAULT 0,
+                     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
                  );",
             )?;
             let db: DbShared = Arc::new(Mutex::new(conn));
@@ -737,7 +754,6 @@ pub fn run() {
 
             Ok(())
         })
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_notes,
