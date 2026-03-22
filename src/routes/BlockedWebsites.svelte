@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { X } from "lucide-svelte";
   let {
     domains,
     onSave,
@@ -55,7 +56,7 @@
       {#each local as domain (domain)}
         <li>
           <span class="domain">{domain}</span>
-          <button class="remove" onclick={() => remove(domain)}>✕</button>
+          <button class="remove" onclick={() => remove(domain)}><X size={12} /></button>
         </li>
       {/each}
     </ul>

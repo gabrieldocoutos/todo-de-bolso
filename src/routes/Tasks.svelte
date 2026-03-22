@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { Pencil, RotateCcw, X } from "lucide-svelte";
 
   type Task = { id: number; title: string; total_seconds: number };
 
@@ -84,9 +85,9 @@
             <span class="task-title">{task.title}</span>
             <span class="task-time">{formatDuration(task.total_seconds)}</span>
             <div class="task-actions">
-              <button class="icon-btn" onclick={() => startEdit(task)} title="Rename">✏</button>
-              <button class="icon-btn" onclick={() => resetTime(task.id)} title="Reset time">↺</button>
-              <button class="icon-btn danger" onclick={() => deleteTask(task.id)} title="Delete">×</button>
+              <button class="icon-btn" onclick={() => startEdit(task)} title="Rename"><Pencil size={12} /></button>
+              <button class="icon-btn" onclick={() => resetTime(task.id)} title="Reset time"><RotateCcw size={12} /></button>
+              <button class="icon-btn danger" onclick={() => deleteTask(task.id)} title="Delete"><X size={12} /></button>
             </div>
           {/if}
         </li>

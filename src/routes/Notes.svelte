@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { Plus, X } from "lucide-svelte";
 
   let { isDirty = $bindable(false), isActive }: { isDirty?: boolean; isActive: boolean } = $props();
 
@@ -119,7 +120,7 @@
 <div class="editor-layout">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <button class="new-btn" onclick={createNote} title="New note">+</button>
+      <button class="new-btn" onclick={createNote} title="New note"><Plus size={16} /></button>
     </div>
     <ul class="note-list">
       {#each notes as name (name)}
@@ -147,7 +148,7 @@
               {/if}
             </button>
             {#if notes.length > 1}
-              <button class="del-btn" onclick={(e) => deleteNote(name, e)} title="Delete">×</button>
+              <button class="del-btn" onclick={(e) => deleteNote(name, e)} title="Delete"><X size={12} /></button>
             {/if}
           {/if}
         </li>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { Circle, Check } from "lucide-svelte";
 
   type Reminder = { id: number; title: string };
 
@@ -81,7 +82,7 @@
           onclick={() => complete(reminder.id)}
           title="Click to mark as done"
         >
-          <span class="circle">{completing.has(reminder.id) ? '✓' : '○'}</span>
+          <span class="circle">{#if completing.has(reminder.id)}<Check size={12} />{:else}<Circle size={12} />{/if}</span>
           {reminder.title}
         </li>
       {/each}

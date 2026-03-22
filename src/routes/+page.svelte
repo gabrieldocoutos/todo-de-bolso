@@ -6,13 +6,22 @@
   import Pomodoro from "./Pomodoro.svelte";
   import BlockedWebsites from "./BlockedWebsites.svelte";
   import Reminders from "./Reminders.svelte";
+  import ShortcutGuide from "./ShortcutGuide.svelte";
+  import { CircleHelp } from "lucide-svelte";
   let activeTab = $state<'notes' | 'pomodoro' | 'blocked' | 'reminders'>('notes');
+  let showShortcutGuide = $state(false);
   const tabs: Array<typeof activeTab> = ['notes', 'pomodoro', 'blocked', 'reminders'];
 
   function onTabKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      if (showShortcutGuide) { showShortcutGuide = false; return; }
       if (showQuitModal) { cancelQuit(); return; }
       if (showPasswordModal) { cancelPassword(); return; }
+    }
+    const target = e.target as HTMLElement;
+    if (e.key === '?' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+      showShortcutGuide = !showShortcutGuide;
+      return;
     }
     if (!e.metaKey) return;
     const num = parseInt(e.key);
@@ -238,6 +247,13 @@
       </div>
     </div>
   </div>
+{/if}
+
+<button class="help-btn" onclick={() => showShortcutGuide = true} title="Keyboard shortcuts (?)"
+><CircleHelp size={14} /></button>
+
+{#if showShortcutGuide}
+  <ShortcutGuide onclose={() => showShortcutGuide = false} />
 {/if}
 
 <style>
@@ -486,5 +502,32 @@
 
   .modal-confirm--danger:hover:not(:disabled) {
     background: #c43e3e;
+  }
+
+  .help-btn {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #2d2d2d;
+    border: 1px solid #3d3d3d;
+    color: #666;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 100;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .help-btn:hover {
+    color: #d4d4d4;
+    border-color: #555;
+    background: #3a3a3a;
   }
 </style>

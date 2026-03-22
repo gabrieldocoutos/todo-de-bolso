@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onDestroy } from "svelte";
+  import { Circle, CircleDot, Pencil, RotateCcw, X } from "lucide-svelte";
 
   let { isActive }: { isActive: boolean } = $props();
 
@@ -179,7 +180,7 @@
             onclick={() => selectTask(task.id)}
             title={isActive ? "Deselect task" : "Select task"}
           >
-            {#if isActive}●{:else}○{/if}
+            {#if isActive}<CircleDot size={14} />{:else}<Circle size={14} />{/if}
           </button>
           {#if editingId === task.id}
             <input
@@ -206,17 +207,17 @@
               <button
                 class="icon-btn"
                 onclick={(e) => startEdit(task, e)}
-                title="Rename">✏</button
+                title="Rename"><Pencil size={12} /></button
               >
               <button
                 class="icon-btn"
                 onclick={(e) => resetTime(task.id, e)}
-                title="Reset time">↺</button
+                title="Reset time"><RotateCcw size={12} /></button
               >
               <button
                 class="icon-btn danger"
                 onclick={(e) => deleteTask(task.id, e)}
-                title="Delete">×</button
+                title="Delete"><X size={12} /></button
               >
             </div>
           {/if}
