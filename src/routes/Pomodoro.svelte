@@ -15,6 +15,7 @@
   let activeTaskId = $state<number | null>(null);
   let activeTaskElapsed = $state(0);
   let prevMode = $state<string | null>(null);
+  let skipNotification = $state(false);
 
   function playNotification() {
     const audio = new Audio("/notification.wav");
@@ -46,9 +47,10 @@
   };
 
   function applyState(s: Payload) {
-    if (prevMode !== null && s.mode !== prevMode) {
+    if (prevMode !== null && s.mode !== prevMode && !skipNotification) {
       playNotification();
     }
+    skipNotification = false;
     prevMode = s.mode;
     mode = s.mode as "work" | "break";
     remaining = s.remaining;
@@ -79,6 +81,7 @@
     tasks = await invoke<Task[]>("get_tasks");
   }
   function skipBreak() {
+    skipNotification = true;
     invoke("pomodoro_skip_break");
   }
 
