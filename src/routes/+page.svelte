@@ -8,18 +8,36 @@
   import Todo from "./Todo.svelte";
   import ShortcutGuide from "./ShortcutGuide.svelte";
   import { CircleHelp } from "lucide-svelte";
-  let activeTab = $state<'notes' | 'pomodoro' | 'blocked' | 'todo'>('notes');
+  let activeTab = $state<"notes" | "pomodoro" | "blocked" | "todo">("notes");
   let showShortcutGuide = $state(false);
-  const tabs: Array<typeof activeTab> = ['notes', 'pomodoro', 'blocked', 'todo'];
+  const tabs: Array<typeof activeTab> = [
+    "notes",
+    "pomodoro",
+    "blocked",
+    "todo",
+  ];
 
   function onTabKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      if (showShortcutGuide) { showShortcutGuide = false; return; }
-      if (showQuitModal) { cancelQuit(); return; }
-      if (showPasswordModal) { cancelPassword(); return; }
+    if (e.key === "Escape") {
+      if (showShortcutGuide) {
+        showShortcutGuide = false;
+        return;
+      }
+      if (showQuitModal) {
+        cancelQuit();
+        return;
+      }
+      if (showPasswordModal) {
+        cancelPassword();
+        return;
+      }
     }
     const target = e.target as HTMLElement;
-    if (e.key === '?' && target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+    if (
+      e.key === "?" &&
+      target.tagName !== "INPUT" &&
+      target.tagName !== "TEXTAREA"
+    ) {
       showShortcutGuide = !showShortcutGuide;
       return;
     }
@@ -45,9 +63,9 @@
 
   // Password modal state
   let showPasswordModal = $state(false);
-  let pendingPassword = $state('');
+  let pendingPassword = $state("");
   let pendingDomains = $state<string[]>([]);
-  let passwordError = $state('');
+  let passwordError = $state("");
 
   // Quit confirmation modal
   let showQuitModal = $state(false);
@@ -57,7 +75,7 @@
       e.preventDefault();
       showQuitModal = true;
     });
-    const unlistenTrayQuit = listen('quit-requested', () => {
+    const unlistenTrayQuit = listen("quit-requested", () => {
       showQuitModal = true;
     });
     return () => {
@@ -67,7 +85,7 @@
   });
 
   function confirmQuit() {
-    invoke('app_exit');
+    invoke("app_exit");
   }
 
   function cancelQuit() {
@@ -86,19 +104,31 @@
   // Auto-activate focus when pomodoro is running in work mode
   let prevPomodoroWork = $state(false);
   $effect(() => {
-    const unlisten = listen<{running: boolean; mode: string}>('pomodoro-tick', (event) => {
-      const isWorking = event.payload.running && event.payload.mode === 'work';
-      if (isWorking && !prevPomodoroWork && !blockingActive && !toggling) {
-        focusAutoActivated = true;
-        toggleBlocking(true);
-      } else if (!isWorking && prevPomodoroWork && blockingActive && focusAutoActivated && !toggling) {
-        focusAutoActivated = false;
-        toggleBlocking(true);
-      }
-      prevPomodoroWork = isWorking;
-      pomodoroWorking = isWorking;
-    });
-    return () => { unlisten.then((fn) => fn()); };
+    const unlisten = listen<{ running: boolean; mode: string }>(
+      "pomodoro-tick",
+      (event) => {
+        const isWorking =
+          event.payload.running && event.payload.mode === "work";
+        if (isWorking && !prevPomodoroWork && !blockingActive && !toggling) {
+          focusAutoActivated = true;
+          toggleBlocking(true);
+        } else if (
+          !isWorking &&
+          prevPomodoroWork &&
+          blockingActive &&
+          focusAutoActivated &&
+          !toggling
+        ) {
+          focusAutoActivated = false;
+          toggleBlocking(true);
+        }
+        prevPomodoroWork = isWorking;
+        pomodoroWorking = isWorking;
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   });
 
   async function saveBlocked(domains: string[]) {
@@ -124,8 +154,8 @@
       if (e === "NeedPassword") {
         needModal = true;
         pendingDomains = domains;
-        pendingPassword = '';
-        passwordError = '';
+        pendingPassword = "";
+        passwordError = "";
         showPasswordModal = true;
       } else if (e !== "Cancelled") {
         alert("Error: " + e);
@@ -136,20 +166,23 @@
   }
 
   async function submitPassword() {
-    passwordError = '';
+    passwordError = "";
     try {
-      await invoke("write_blocked_with_password", { domains: pendingDomains, password: pendingPassword });
+      await invoke("write_blocked_with_password", {
+        domains: pendingDomains,
+        password: pendingPassword,
+      });
       blockingActive = await invoke<boolean>("get_blocking_status");
       showPasswordModal = false;
     } catch (e) {
       if (e === "WrongPassword") {
-        passwordError = 'Wrong password, try again.';
+        passwordError = "Wrong password, try again.";
       } else if (e !== "Cancelled") {
         passwordError = String(e);
       }
     } finally {
       if (!showPasswordModal || !passwordError) {
-        pendingPassword = '';
+        pendingPassword = "";
         toggling = false;
       }
     }
@@ -157,7 +190,7 @@
 
   function cancelPassword() {
     showPasswordModal = false;
-    pendingPassword = '';
+    pendingPassword = "";
     toggling = false;
   }
 </script>
@@ -169,49 +202,54 @@
     <nav>
       <button
         class="tab"
-        class:active={activeTab === 'notes'}
-        onclick={() => activeTab = 'notes'}
-      >Notes
-      <span class="filename">{notesDirty ? ' •' : ''}</span></button>
+        class:active={activeTab === "notes"}
+        onclick={() => (activeTab = "notes")}
+        >Notes
+        <span class="filename">{notesDirty ? " •" : ""}</span></button
+      >
       <button
         class="tab"
-        class:active={activeTab === 'pomodoro'}
-        onclick={() => activeTab = 'pomodoro'}
-      >Pomodoro</button>
+        class:active={activeTab === "pomodoro"}
+        onclick={() => (activeTab = "pomodoro")}>Pomodoro</button
+      >
       <button
         class="tab"
-        class:active={activeTab === 'blocked'}
-        onclick={() => activeTab = 'blocked'}
-      >Blocked</button>
+        class:active={activeTab === "blocked"}
+        onclick={() => (activeTab = "blocked")}>Blocked</button
+      >
       <button
         class="tab"
-        class:active={activeTab === 'todo'}
-        onclick={() => activeTab = 'todo'}
-      >TODO</button>
+        class:active={activeTab === "todo"}
+        onclick={() => (activeTab = "todo")}>Todo</button
+      >
     </nav>
 
-  <div class="productivity-toggle">
-    <span class="toggle-label">{blockingActive ? 'Focus ON' : 'Focus'}</span>
-    <button
-      class="productivity-switch"
-      class:active={blockingActive}
-      class:toggling
-      onclick={() => toggleBlocking()}
-      disabled={toggling || (pomodoroWorking && blockingActive)}
-      title={pomodoroWorking && blockingActive ? 'Focus cannot be disabled while Pomodoro is running' : blockingActive ? 'Distracting sites are blocked' : 'Click to block distracting sites'}
-    >
-      <span class="switch-track">
-        <span class="switch-knob"></span>
-      </span>
-    </button>
-  </div>
+    <div class="productivity-toggle">
+      <span class="toggle-label">{blockingActive ? "Focus ON" : "Focus"}</span>
+      <button
+        class="productivity-switch"
+        class:active={blockingActive}
+        class:toggling
+        onclick={() => toggleBlocking()}
+        disabled={toggling || (pomodoroWorking && blockingActive)}
+        title={pomodoroWorking && blockingActive
+          ? "Focus cannot be disabled while Pomodoro is running"
+          : blockingActive
+            ? "Distracting sites are blocked"
+            : "Click to block distracting sites"}
+      >
+        <span class="switch-track">
+          <span class="switch-knob"></span>
+        </span>
+      </button>
+    </div>
   </header>
 
-  {#if activeTab === 'notes'}
+  {#if activeTab === "notes"}
     <Notes bind:isDirty={notesDirty} isActive={true} />
-  {:else if activeTab === 'pomodoro'}
+  {:else if activeTab === "pomodoro"}
     <Pomodoro isActive={true} />
-  {:else if activeTab === 'blocked'}
+  {:else if activeTab === "blocked"}
     <BlockedWebsites domains={blockedDomains} onSave={saveBlocked} />
   {:else}
     <Todo />
@@ -220,20 +258,32 @@
 
 {#if showPasswordModal}
   <div class="modal-backdrop" role="presentation" onclick={cancelPassword}>
-    <div class="modal" role="dialog" tabindex="0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+    <div
+      class="modal"
+      role="dialog"
+      tabindex="0"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+    >
       <p class="modal-title">Administrator password</p>
-      <p class="modal-sub">Required to modify /etc/hosts. Stored for this session.</p>
+      <p class="modal-sub">
+        Required to modify /etc/hosts. Stored for this session.
+      </p>
       <input
         class="modal-input"
         type="password"
         placeholder="Password"
         bind:value={pendingPassword}
-        onkeydown={(e) => e.key === 'Enter' && submitPassword()}
+        onkeydown={(e) => e.key === "Enter" && submitPassword()}
       />
       {#if passwordError}<p class="modal-error">{passwordError}</p>{/if}
       <div class="modal-actions">
         <button onclick={cancelPassword}>Cancel</button>
-        <button class="modal-confirm" onclick={submitPassword} disabled={!pendingPassword}>OK</button>
+        <button
+          class="modal-confirm"
+          onclick={submitPassword}
+          disabled={!pendingPassword}>OK</button
+        >
       </div>
     </div>
   </div>
@@ -246,17 +296,23 @@
       <p class="modal-sub">Are you sure you want to close the app?</p>
       <div class="modal-actions">
         <button onclick={cancelQuit}>Cancel</button>
-        <button class="modal-confirm modal-confirm--danger" onclick={confirmQuit}>Quit</button>
+        <button
+          class="modal-confirm modal-confirm--danger"
+          onclick={confirmQuit}>Quit</button
+        >
       </div>
     </div>
   </div>
 {/if}
 
-<button class="help-btn" onclick={() => showShortcutGuide = true} title="Keyboard shortcuts (?)"
-><CircleHelp size={14} /></button>
+<button
+  class="help-btn"
+  onclick={() => (showShortcutGuide = true)}
+  title="Keyboard shortcuts (?)"><CircleHelp size={14} /></button
+>
 
 {#if showShortcutGuide}
-  <ShortcutGuide onclose={() => showShortcutGuide = false} />
+  <ShortcutGuide onclose={() => (showShortcutGuide = false)} />
 {/if}
 
 <style>
@@ -397,7 +453,10 @@
     background: #3a3a3a;
     border: 1px solid #555;
     padding: 3px;
-    transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+    transition:
+      background 0.22s ease,
+      border-color 0.22s ease,
+      box-shadow 0.22s ease;
     position: relative;
   }
 
@@ -406,14 +465,18 @@
     height: 20px;
     border-radius: 50%;
     background: #888;
-    transition: transform 0.22s ease, background 0.22s ease;
+    transition:
+      transform 0.22s ease,
+      background 0.22s ease;
     flex-shrink: 0;
   }
 
   .productivity-switch.active .switch-track {
     background: #4ec9b0;
     border-color: #4ec9b0;
-    box-shadow: 0 0 14px #4ec9b055, 0 2px 8px #0006;
+    box-shadow:
+      0 0 14px #4ec9b055,
+      0 2px 8px #0006;
   }
 
   .productivity-switch.active .switch-knob {
@@ -525,7 +588,9 @@
     justify-content: center;
     padding: 0;
     z-index: 100;
-    transition: color 0.15s, border-color 0.15s;
+    transition:
+      color 0.15s,
+      border-color 0.15s;
   }
 
   .help-btn:hover {

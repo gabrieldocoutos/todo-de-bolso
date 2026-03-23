@@ -14,6 +14,13 @@
   let completedSessions = $state(0);
   let activeTaskId = $state<number | null>(null);
   let activeTaskElapsed = $state(0);
+  let prevMode = $state<string | null>(null);
+
+  function playNotification() {
+    const audio = new Audio("/notification.wav");
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  }
 
   type Task = { id: number; title: string; total_seconds: number };
   let tasks = $state<Task[]>([]);
@@ -39,6 +46,10 @@
   };
 
   function applyState(s: Payload) {
+    if (prevMode !== null && s.mode !== prevMode) {
+      playNotification();
+    }
+    prevMode = s.mode;
     mode = s.mode as "work" | "break";
     remaining = s.remaining;
     running = s.running;
