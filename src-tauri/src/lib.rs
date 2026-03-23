@@ -677,6 +677,9 @@ pub fn run() {
 
             // Initialise SQLite
             let db_path = app.path().app_data_dir()?.join("tasks.db");
+            if let Some(parent) = db_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
             let conn = rusqlite::Connection::open(&db_path)?;
             conn.execute_batch(
                 "PRAGMA journal_mode=WAL;

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "produtividade-de-bolso",
+  "productName": "mezame",
   "version": "0.1.0",
-  "identifier": "com.gabdcouto.produtividade-de-bolso",
+  "identifier": "com.gabdcouto.mezame",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
