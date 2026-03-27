@@ -361,7 +361,7 @@
     height: 100vh;
     background: #1e1e1e;
     color: #d4d4d4;
-    font-family: "Menlo", "Monaco", "Courier New", monospace;
+    font-family: "Inter", sans-serif;
   }
 
   header {
@@ -390,7 +390,7 @@
     padding: 6px 16px;
     font-size: 12px;
     cursor: pointer;
-    font-family: inherit;
+    font-family: "Space Grotesk", "Inter", sans-serif;
     border-bottom: 2px solid transparent;
     transition: color 0.15s;
   }
@@ -441,6 +441,7 @@
   }
 
   .toggle-label {
+    font-family: "Space Grotesk", "Inter", sans-serif;
     font-size: 10px;
     color: #555;
     letter-spacing: 0.03em;
@@ -535,10 +536,11 @@
     flex-direction: column;
     gap: 10px;
     box-shadow: 0 8px 32px #0008;
-    font-family: "Menlo", "Monaco", "Courier New", monospace;
+    font-family: "Inter", sans-serif;
   }
 
   .modal-title {
+    font-family: "Space Grotesk", "Inter", sans-serif;
     font-size: 13px;
     color: #d4d4d4;
     font-weight: 600;

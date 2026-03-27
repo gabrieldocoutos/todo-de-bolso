@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { Circle, Check, ChevronDown, ChevronRight, X, RefreshCw, Square, CheckSquare } from "lucide-svelte";
+  import PageHeader from "$lib/PageHeader.svelte";
 
   type Reminder = { id: number; title: string };
 
@@ -85,10 +86,11 @@
 </script>
 
 <div class="todo">
-  <div class="hero">
-    <h1 class="title">Backlog</h1>
-    <span class="meta">ARCHITECT / MAIN_BRANCH</span>
-  </div>
+  <PageHeader title="Todo">
+    {#snippet subtitle()}
+      Capture what needs to be done so nothing slips through.
+    {/snippet}
+  </PageHeader>
 
   <form class="add-form" onsubmit={(e) => { e.preventDefault(); create(); }}>
     <div class="input-wrap">
@@ -113,7 +115,7 @@
   {:else}
     <div class="lists">
       {#if reminders.length === 0}
-        <p class="hint">No pending todos.</p>
+        <p class="hint">All done! Add a task above to get started.</p>
       {:else}
         <ul>
           {#each reminders as reminder (reminder.id)}
@@ -183,31 +185,6 @@
     position: relative;
   }
 
-  /* ---- Hero ---- */
-  .hero {
-    margin-bottom: 24px;
-  }
-
-  .title {
-    font-family: "Space Grotesk", "Inter", sans-serif;
-    font-size: 1.5rem;
-    font-weight: 700;
-    font-style: italic;
-    color: #e5e2e1;
-    margin: 0;
-    letter-spacing: -0.01em;
-  }
-
-  .meta {
-    font-family: "JetBrains Mono", "Menlo", monospace;
-    font-size: 0.625rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: #86948f;
-    margin-top: 4px;
-    display: block;
-  }
 
   /* ---- Add form ---- */
   .add-form {

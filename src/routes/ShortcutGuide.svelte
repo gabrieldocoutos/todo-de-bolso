@@ -8,25 +8,30 @@
 <div class="modal-backdrop" role="presentation" onclick={onclose}>
   <div class="modal" role="dialog" tabindex="0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
     <div class="modal-header">
-      <p class="modal-title">Keyboard shortcuts</p>
-      <button class="close-btn" onclick={onclose}><X size={14} /></button>
+      <p class="modal-title">Keyboard Shortcuts</p>
+      <button class="close-btn" onclick={onclose}><X size={16} /></button>
     </div>
 
-    {#each SHORTCUTS as group}
-      <div class="group">
-        <p class="group-label">{group.label}</p>
-        {#each group.shortcuts as shortcut}
-          <div class="shortcut-row">
-            <div class="keys">
-              {#each shortcut.keys as key}
-                <kbd class="key">{key}</kbd>
-              {/each}
-            </div>
-            <span class="desc">{shortcut.description}</span>
+    <div class="shortcut-grid">
+      {#each SHORTCUTS as group}
+        <div class="group">
+          <div class="group-header">
+            <span class="group-label">{group.label}</span>
+            <span class="group-line"></span>
           </div>
-        {/each}
-      </div>
-    {/each}
+          {#each group.shortcuts as shortcut}
+            <div class="shortcut-row">
+              <span class="desc">{shortcut.description}</span>
+              <div class="keys">
+                {#each shortcut.keys as key}
+                  <kbd class="key">{key}</kbd>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/each}
+    </div>
   </div>
 </div>
 
@@ -34,7 +39,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: #0008;
+    background: #000a;
     z-index: 200;
     display: flex;
     align-items: center;
@@ -42,93 +47,124 @@
   }
 
   .modal {
-    background: #2d2d2d;
-    border: 1px solid #3d3d3d;
+    background: #1c1b1b;
+    border: 1px solid #3d494633;
     border-radius: 8px;
-    padding: 16px 20px 20px;
-    width: 340px;
+    width: 480px;
     max-height: 80vh;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    box-shadow: 0 8px 32px #0008;
-    font-family: "Menlo", "Monaco", "Courier New", monospace;
+    box-shadow: 0 12px 48px #0006;
+    font-family: "Inter", sans-serif;
   }
 
   .modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 28px 28px 20px;
+    border-bottom: 1px solid #3d49460d;
   }
 
   .modal-title {
-    font-size: 13px;
-    color: #d4d4d4;
-    font-weight: 600;
+    font-family: "Space Grotesk", "Inter", sans-serif;
+    font-size: 22px;
+    color: #e5e2e1;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
   .close-btn {
-    background: transparent;
+    width: 36px;
+    height: 36px;
+    background: #2a2a2a;
     border: none;
-    color: #666;
-    font-size: 16px;
+    color: #bccac4;
     cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: inherit;
-    line-height: 1;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: color 0.15s, background 0.15s;
   }
 
   .close-btn:hover {
-    color: #d4d4d4;
-    background: #3a3a3a;
+    color: #6de5cb;
+    background: #353534;
+  }
+
+  .shortcut-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    padding: 28px;
   }
 
   .group {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 12px;
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .group-label {
-    font-size: 10px;
+    font-family: "Space Grotesk", "Inter", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
     color: #4ec9b0;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+
+  .group-line {
+    flex: 1;
+    height: 1px;
+    background: #3d494633;
   }
 
   .shortcut-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 3px 0;
+    padding: 4px 0;
+    gap: 12px;
+    transition: opacity 0.15s;
+  }
+
+  .shortcut-row:hover .desc {
+    color: #e5e2e1;
   }
 
   .keys {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
   }
 
   .key {
-    font-family: inherit;
+    font-family: "Space Grotesk", "Inter", sans-serif;
     font-size: 11px;
-    color: #ccc;
-    background: #1e1e1e;
-    border: 1px solid #444;
+    color: #6de5cb;
+    background: #353534;
+    border: 1px solid #3d494633;
     border-radius: 4px;
-    padding: 3px 8px;
-    min-width: 24px;
+    padding: 4px 8px;
+    min-width: 28px;
     text-align: center;
     line-height: 1;
-    box-shadow: 0 1px 0 #000;
   }
 
   .desc {
-    font-size: 11px;
-    color: #999;
-    flex: 1;
-    text-align: right;
+    font-size: 13px;
+    color: #bccac4;
+    transition: color 0.15s;
   }
 </style>

@@ -231,7 +231,7 @@
     display: flex;
     align-items: center;
     position: relative;
-    border-radius: 6px;
+    border-radius: 0;
     margin-bottom: 2px;
   }
 

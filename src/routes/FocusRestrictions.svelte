@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { X, Globe, AppWindow, LayoutGrid, List } from "lucide-svelte";
+  import PageHeader from "$lib/PageHeader.svelte";
 
   let {
     domains,
@@ -107,14 +108,15 @@
 
 <div class="focus-restrictions">
   <div class="header">
-    <h1 class="title">Focus Restrictions</h1>
-    <p class="subtitle">
-      Enhance focus by restricting access to distracting domains and desktop
-      applications. Your deep work session is currently
-      <strong class:status-active={focusActive} class:status-inactive={!focusActive}>
-        {focusActive ? "Active" : "Inactive"}</strong
-      >.
-    </p>
+    <PageHeader title="Focus Restrictions">
+      {#snippet subtitle()}
+        Enhance focus by restricting access to distracting domains and desktop
+        applications. Your deep work session is currently
+        <strong class={focusActive ? "status-active" : "status-inactive"}>
+          {focusActive ? "Active" : "Inactive"}</strong
+        >.
+      {/snippet}
+    </PageHeader>
   </div>
 
   <div class="content">
@@ -273,27 +275,12 @@
     padding: 28px 32px 0;
   }
 
-  .title {
-    font-family: "Space Grotesk", "Inter", sans-serif;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #e5e2e1;
-    margin: 0 0 8px;
-  }
-
-  .subtitle {
-    font-size: 0.8125rem;
-    color: #bccac4;
-    margin: 0;
-    line-height: 1.5;
-  }
-
-  .status-active {
+  .header :global(.status-active) {
     color: #6de5cb;
     font-weight: 600;
   }
 
-  .status-inactive {
+  .header :global(.status-inactive) {
     color: #86948f;
     font-weight: 600;
   }
