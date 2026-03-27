@@ -287,13 +287,12 @@
               {:else}
                 <div class="task-content">
                   <h4 class="task-title">{task.title}</h4>
-                  <span class="task-time">
+                  <div class="task-times">
+                    <span class="task-time">{fmtDuration(task.total_seconds)}</span>
                     {#if isTaskActive && (running || activeTaskElapsed > 0)}
-                      {fmtSession(activeTaskElapsed)}
-                    {:else}
-                      {fmtDuration(task.total_seconds)}
+                      <span class="task-session-time">+{fmtSession(activeTaskElapsed)}</span>
                     {/if}
-                  </span>
+                  </div>
                 </div>
                 <div class="task-meta">
                   {#if isTaskActive}
@@ -732,6 +731,12 @@
     color: #e5e2e1;
   }
 
+  .task-times {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .task-time {
     font-family: "JetBrains Mono", monospace;
     font-size: 10px;
@@ -739,7 +744,14 @@
   }
 
   .task-row.active .task-time {
+    color: #bccac4;
+  }
+
+  .task-session-time {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
     color: #6de5cb;
+    font-weight: 600;
   }
 
   .task-meta {
