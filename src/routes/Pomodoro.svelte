@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onDestroy } from "svelte";
-  import { Circle, CircleDot, Pencil, RotateCcw, X } from "lucide-svelte";
+  import { Pencil, RotateCcw, X, Plus } from "lucide-svelte";
 
   let { isActive }: { isActive: boolean } = $props();
 
@@ -16,6 +16,8 @@
   let activeTaskElapsed = $state(0);
   let prevMode = $state<string | null>(null);
   let skipNotification = $state(false);
+  let workSecs = $state(25 * 60);
+  let breakSecs = $state(5 * 60);
 
   function playNotification() {
     const audio = new Audio("/notification.wav");
@@ -37,6 +39,19 @@
   const seconds = $derived(String(remaining % 60).padStart(2, "0"));
   const doneInRound = $derived(completedSessions % ROUND_SIZE);
 
+  const presets = [
+    { label: "STANDARD", workSecs: 25 * 60, breakSecs: 5 * 60 },
+    { label: "DEEP FOCUS", workSecs: 50 * 60, breakSecs: 10 * 60 },
+    { label: "LONG RUN", workSecs: 90 * 60, breakSecs: 20 * 60 },
+    { label: "MICRO", workSecs: 15 * 60, breakSecs: 3 * 60 },
+  ];
+
+  const activePresetIndex = $derived(
+    presets.findIndex(
+      (p) => p.workSecs === workSecs && p.breakSecs === breakSecs,
+    ),
+  );
+
   type Payload = {
     mode: string;
     remaining: number;
@@ -44,6 +59,8 @@
     completed_sessions: number;
     active_task_id: number | null;
     active_task_elapsed: number;
+    work_secs: number;
+    break_secs: number;
   };
 
   function applyState(s: Payload) {
@@ -58,6 +75,8 @@
     completedSessions = s.completed_sessions;
     activeTaskId = s.active_task_id;
     activeTaskElapsed = s.active_task_elapsed;
+    workSecs = s.work_secs;
+    breakSecs = s.break_secs;
   }
 
   invoke<Payload>("pomodoro_get_state").then(applyState);
@@ -83,6 +102,14 @@
   function skipBreak() {
     skipNotification = true;
     invoke("pomodoro_skip_break");
+  }
+
+  async function setPreset(w: number, b: number) {
+    const s = await invoke<Payload>("set_pomodoro_config", {
+      workSecs: w,
+      breakSecs: b,
+    });
+    applyState(s);
   }
 
   async function selectTask(id: number) {
@@ -131,7 +158,7 @@
   }
 
   function fmtDuration(s: number): string {
-    if (s === 0) return "—";
+    if (s === 0) return "\u2014";
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
@@ -144,6 +171,10 @@
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${m}:${String(sec).padStart(2, "0")}`;
+  }
+
+  function fmtPreset(secs: number): number {
+    return Math.round(secs / 60);
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -160,99 +191,176 @@
 <svelte:window onkeydown={onKeyDown} />
 
 <div class="pomodoro">
-  <!-- Timer section -->
-  <div class="timer-section">
-    <div class="mode">{mode === "work" ? "WORK" : "BREAK"}</div>
-    <div class="timer">{minutes}:{seconds}</div>
-    <div class="controls">
-      <button onclick={toggle}>{running ? "Pause" : "Start"}</button>
-      <button onclick={reset}>Reset</button>
-      {#if mode === "break"}
-        <button onclick={skipBreak}>Skip</button>
-      {/if}
-    </div>
-    <div class="sessions">
-      <span>Round {Math.floor(completedSessions / ROUND_SIZE) + 1}</span>
-      <span class="dots">
-        {#each Array(ROUND_SIZE) as _, i}
-          <span class:filled={i < doneInRound}>◦</span>
-        {/each}
-      </span>
-      <span>{completedSessions} done</span>
-    </div>
-  </div>
+  <div class="scroll-area">
+    <!-- Hero Timer Section -->
+    <section class="hero">
+      <div class="status-pill" class:break={mode === "break"}>
+        <span class="status-icon">{mode === "work" ? "\u26A1" : "\u2615"}</span>
+        <span class="status-text"
+          >{running
+            ? mode === "work"
+              ? "Deep Focus Active"
+              : "Break Time"
+            : mode === "work"
+              ? "Ready to Focus"
+              : "Break"}</span
+        >
+      </div>
 
-  <!-- Task section -->
-  <div class="task-section">
-    <div class="task-list">
-      {#each tasks as task (task.id)}
-        {@const isActive = task.id === activeTaskId}
-        <div class="task-row" class:active={isActive}>
+      <div class="timer-wrapper">
+        <div class="timer-glow"></div>
+        <h1 class="timer-display">{minutes}:{seconds}</h1>
+        <div class="round-info">
+          <span class="round-label">Round</span>
+          <div class="round-dots">
+            {#each Array(ROUND_SIZE) as _, i}
+              <div class="dot" class:filled={i < doneInRound}></div>
+            {/each}
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-controls">
+        <button class="btn-primary" onclick={toggle}>
+          {running ? "Pause" : "Start session"}
+        </button>
+        <button class="btn-icon" onclick={reset} title="Reset">
+          <RotateCcw size={18} />
+        </button>
+        {#if mode === "break"}
+          <button class="btn-secondary" onclick={skipBreak}>Skip</button>
+        {/if}
+      </div>
+    </section>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+      <!-- Tasks Card -->
+      <div class="card tasks-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Today's Focus</h3>
+            <p class="card-subtitle">
+              {completedSessions} completed
+            </p>
+          </div>
           <button
-            class="select-btn"
-            class:selected={isActive}
-            onclick={() => selectTask(task.id)}
-            title={isActive ? "Deselect task" : "Select task"}
+            class="btn-add"
+            onclick={() => {
+              const input = document.querySelector<HTMLInputElement>('.new-input');
+              input?.focus();
+            }}
           >
-            {#if isActive}<CircleDot size={14} />{:else}<Circle size={14} />{/if}
+            <Plus size={14} />
+            New Task
           </button>
-          {#if editingId === task.id}
-            <input
-              class="edit-input"
-              bind:value={editingTitle}
-              onkeydown={(e) => {
-                if (e.key === "Enter") saveEdit();
-                if (e.key === "Escape") editingId = null;
-              }}
-              onblur={saveEdit}
-              use:focusOnMount
-            />
-          {:else}
-            <span class="task-title">{task.title}</span>
-            <span class="task-time">
-              {#if isActive && (running || activeTaskElapsed > 0)}
-                <span class="session-time">{fmtSession(activeTaskElapsed)}</span
-                >
+        </div>
+
+        <div class="task-list">
+          {#each tasks as task (task.id)}
+            {@const isTaskActive = task.id === activeTaskId}
+            <div
+              class="task-row"
+              class:active={isTaskActive}
+              onclick={() => selectTask(task.id)}
+              role="button"
+              tabindex="0"
+              onkeydown={(e) => e.key === "Enter" && selectTask(task.id)}
+            >
+              <div class="task-indicator" class:active={isTaskActive}>
+                {#if isTaskActive}
+                  <div class="indicator-pulse"></div>
+                {/if}
+              </div>
+              {#if editingId === task.id}
+                <input
+                  class="edit-input"
+                  bind:value={editingTitle}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") saveEdit();
+                    if (e.key === "Escape") editingId = null;
+                  }}
+                  onblur={saveEdit}
+                  onclick={(e) => e.stopPropagation()}
+                  use:focusOnMount
+                />
               {:else}
-                {fmtDuration(task.total_seconds)}
+                <div class="task-content">
+                  <h4 class="task-title">{task.title}</h4>
+                  <span class="task-time">
+                    {#if isTaskActive && (running || activeTaskElapsed > 0)}
+                      {fmtSession(activeTaskElapsed)}
+                    {:else}
+                      {fmtDuration(task.total_seconds)}
+                    {/if}
+                  </span>
+                </div>
+                <div class="task-meta">
+                  {#if isTaskActive}
+                    <span class="chip-active">ACTIVE</span>
+                  {/if}
+                  <div class="task-actions">
+                    <button
+                      class="action-btn"
+                      onclick={(e) => startEdit(task, e)}
+                      title="Rename"><Pencil size={12} /></button
+                    >
+                    <button
+                      class="action-btn"
+                      onclick={(e) => resetTime(task.id, e)}
+                      title="Reset time"><RotateCcw size={12} /></button
+                    >
+                    <button
+                      class="action-btn danger"
+                      onclick={(e) => deleteTask(task.id, e)}
+                      title="Delete"><X size={12} /></button
+                    >
+                  </div>
+                </div>
               {/if}
-            </span>
-            <div class="task-actions">
-              <button
-                class="icon-btn"
-                onclick={(e) => startEdit(task, e)}
-                title="Rename"><Pencil size={12} /></button
-              >
-              <button
-                class="icon-btn"
-                onclick={(e) => resetTime(task.id, e)}
-                title="Reset time"><RotateCcw size={12} /></button
-              >
-              <button
-                class="icon-btn danger"
-                onclick={(e) => deleteTask(task.id, e)}
-                title="Delete"><X size={12} /></button
-              >
             </div>
+          {/each}
+
+          {#if tasks.length === 0}
+            <p class="empty">No tasks yet. Add one to get started.</p>
           {/if}
         </div>
-      {/each}
 
-      {#if tasks.length === 0}
-        <p class="empty">No tasks yet.</p>
-      {/if}
-    </div>
+        <div class="new-task">
+          <input
+            class="new-input"
+            bind:value={newTitle}
+            placeholder="Add a new task..."
+            onkeydown={(e) => e.key === "Enter" && addTask()}
+          />
+          <button
+            class="btn-add-small"
+            onclick={addTask}
+            disabled={!newTitle.trim()}>Add</button
+          >
+        </div>
+      </div>
 
-    <div class="new-task">
-      <input
-        class="new-input"
-        bind:value={newTitle}
-        placeholder="New task..."
-        onkeydown={(e) => e.key === "Enter" && addTask()}
-      />
-      <button class="add-btn" onclick={addTask} disabled={!newTitle.trim()}
-        >Add</button
-      >
+      <!-- Configurations Card -->
+      <div class="card config-card">
+        <h4 class="config-title">Configurations</h4>
+        <div class="preset-grid">
+          {#each presets as preset, i}
+            <button
+              class="preset-btn"
+              class:active={activePresetIndex === i}
+              onclick={() => setPreset(preset.workSecs, preset.breakSecs)}
+            >
+              <span class="preset-label">{preset.label}</span>
+              <span class="preset-duration"
+                >{fmtPreset(preset.workSecs)} / {fmtPreset(
+                  preset.breakSecs,
+                )}</span
+              >
+            </button>
+          {/each}
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -262,89 +370,270 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #1e1e1e;
-    color: #d4d4d4;
-    font-family: "Menlo", "Monaco", "Courier New", monospace;
+    background: #131313;
+    color: #e5e2e1;
+    font-family: "Inter", sans-serif;
     overflow: hidden;
+    position: relative;
   }
 
-  /* ── Timer ── */
-  .timer-section {
+  .scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 0 24px;
+  }
+
+  /* ── Hero Timer ── */
+  .hero {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 20px;
     padding: 28px 0 20px;
     flex-shrink: 0;
-    border-bottom: 1px solid #2a2a2a;
   }
 
-  .mode {
-    font-size: 11px;
-    letter-spacing: 0.25em;
-    color: #4ec9b0;
-  }
-
-  .timer {
-    font-size: 72px;
-    font-weight: 200;
-    letter-spacing: 0.04em;
-    color: #e8e8e8;
-    line-height: 1;
-  }
-
-  .controls {
-    display: flex;
-    gap: 10px;
-  }
-
-  button {
-    background: #3a3a3a;
-    color: #d4d4d4;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 6px 20px;
-    font-size: 13px;
-    cursor: pointer;
-    font-family: inherit;
-    min-width: 80px;
-  }
-
-  button:hover:not(:disabled) {
-    background: #4a4a4a;
-  }
-
-  .sessions {
-    font-size: 11px;
-    color: #555;
+  .status-pill {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 6px;
+    background: #1b1b1c;
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(61, 73, 70, 0.2);
+    margin-bottom: 16px;
   }
 
-  .dots {
-    display: flex;
-    gap: 4px;
-    font-size: 16px;
+  .status-icon {
+    font-size: 11px;
   }
 
-  .dots span {
-    color: #383838;
-    transition: color 0.3s;
-  }
-  .dots span.filled {
-    color: #4ec9b0;
+  .status-text {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #e5e2e1;
   }
 
-  /* ── Tasks ── */
-  .task-section {
-    flex: 1;
+  .status-pill.break {
+    border-color: rgba(255, 195, 183, 0.2);
+  }
+
+  .status-pill.break .status-text {
+    color: #ffc3b7;
+  }
+
+  .timer-wrapper {
+    position: relative;
     display: flex;
     flex-direction: column;
+    align-items: center;
+  }
+
+  .timer-glow {
+    position: absolute;
+    inset: -24px;
+    background: rgba(109, 229, 203, 0.04);
+    filter: blur(40px);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .timer-display {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 8rem;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #e5e2e1;
+    position: relative;
+    user-select: none;
+    margin: 0;
+  }
+
+  .round-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .round-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: #bccac4;
+  }
+
+  .round-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #353535;
+    transition: all 0.3s ease;
+  }
+
+  .dot.filled {
+    background: #6de5cb;
+    box-shadow: 0 0 8px rgba(109, 229, 203, 0.5);
+  }
+
+  .hero-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .btn-primary {
+    padding: 10px 32px;
+    background: linear-gradient(135deg, #6de5cb, #4ec9b0);
+    color: #00382e;
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 4px 16px rgba(109, 229, 203, 0.15);
+    min-width: unset;
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 6px 24px rgba(109, 229, 203, 0.25);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.97);
+  }
+
+  .btn-icon {
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(61, 73, 70, 0.3);
+    color: #6de5cb;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    min-width: unset;
+  }
+
+  .btn-icon:hover {
+    background: #2a2a2a;
+  }
+
+  .btn-icon:active {
+    transform: scale(0.95);
+  }
+
+  .btn-secondary {
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid rgba(61, 73, 70, 0.3);
+    color: #6de5cb;
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-width: unset;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(109, 229, 203, 0.1);
+  }
+
+  /* ── Content Grid ── */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 180px;
+    gap: 12px;
+    padding-bottom: 16px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .card {
+    background: #1b1b1c;
+    border-radius: 12px;
+    border: 1px solid rgba(61, 73, 70, 0.1);
     overflow: hidden;
-    padding: 10px 16px 12px;
-    gap: 8px;
+  }
+
+  /* ── Tasks Card ── */
+  .tasks-card {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    min-height: 0;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+
+  .card-title {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    color: #e5e2e1;
+    margin: 0;
+  }
+
+  .card-subtitle {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: #bccac4;
+    margin: 2px 0 0;
+  }
+
+  .btn-add {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #6de5cb;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: unset;
+  }
+
+  .btn-add:hover {
+    background: rgba(109, 229, 203, 0.1);
   }
 
   .task-list {
@@ -352,175 +641,288 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
   }
 
   .empty {
     font-size: 11px;
-    color: #444;
+    color: #86948f;
     text-align: center;
-    padding: 20px 0;
+    padding: 24px 0;
   }
 
   .task-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 8px 4px 4px;
-    border-radius: 4px;
-    border: 1px solid transparent;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: rgba(14, 14, 14, 0.5);
+    border: 1px solid rgba(61, 73, 70, 0.05);
   }
 
   .task-row:hover {
-    background: #252525;
-    border-color: #2d2d2d;
+    background: #1b1b1c;
+    border-color: rgba(61, 73, 70, 0.15);
   }
 
   .task-row.active {
-    background: #1e2e2a;
-    border-color: #2a5048;
-  }
-
-  .task-row.active .task-title {
-    color: #6fdfc5;
-  }
-
-  .select-btn {
-    background: transparent;
-    border: none;
-    color: #444;
-    font-size: 14px;
-    padding: 2px 4px;
-    cursor: pointer;
-    line-height: 1;
-    min-width: unset;
-    flex-shrink: 0;
-    border-radius: 3px;
-  }
-
-  .select-btn:hover {
     background: #2a2a2a;
-    color: #888;
+    border-left: 2px solid #6de5cb;
+    padding-left: 10px;
   }
 
-  .select-btn.selected {
-    color: #4ec9b0;
+  .task-indicator {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid #3d4946;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
   }
 
-  .select-btn.selected:hover {
-    background: #1a2e2a;
-    color: #4ec9b0;
+  .task-indicator.active {
+    border-color: #6de5cb;
+    border-width: 2px;
+  }
+
+  .indicator-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6de5cb;
+    animation: indicatorPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes indicatorPulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .task-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .task-title {
-    flex: 1;
+    font-family: "Space Grotesk", sans-serif;
     font-size: 12px;
-    color: #c0c0c0;
+    font-weight: 600;
+    color: #bccac4;
+    margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  .task-row.active .task-title {
+    color: #e5e2e1;
+  }
+
   .task-time {
-    font-size: 11px;
-    color: #555;
-    min-width: 52px;
-    text-align: right;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: #86948f;
+  }
+
+  .task-row.active .task-time {
+    color: #6de5cb;
+  }
+
+  .task-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     flex-shrink: 0;
   }
 
-  .session-time {
-    color: #4ec9b0;
+  .chip-active {
+    padding: 2px 8px;
+    background: #353535;
+    color: #80f7dc;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    font-family: "Space Grotesk", sans-serif;
   }
 
   .task-actions {
     display: flex;
-    gap: 1px;
-    flex-shrink: 0;
+    gap: 2px;
     opacity: 0;
+    transition: opacity 0.15s;
   }
 
-  .task-row:hover .task-actions,
-  .task-row.active .task-actions {
+  .task-row:hover .task-actions {
     opacity: 1;
   }
 
-  .icon-btn {
+  .action-btn {
     background: transparent;
-    color: #555;
+    color: #86948f;
     border: none;
-    padding: 2px 4px;
-    font-size: 12px;
+    padding: 3px 5px;
     cursor: pointer;
-    border-radius: 3px;
-    font-family: inherit;
-    line-height: 1;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
     min-width: unset;
   }
 
-  .icon-btn:hover {
-    color: #999;
-    background: #333;
+  .action-btn:hover {
+    color: #bccac4;
+    background: rgba(53, 53, 53, 0.8);
   }
 
-  .icon-btn.danger:hover {
-    color: #f48771;
-    background: #3a2828;
+  .action-btn.danger:hover {
+    color: #ffc3b7;
+    background: rgba(147, 0, 10, 0.2);
   }
 
   .edit-input {
     flex: 1;
-    background: #1e1e1e;
-    border: 1px solid #4ec9b0;
-    border-radius: 3px;
-    color: #d4d4d4;
-    font-family: inherit;
+    background: #0e0e0e;
+    border: 1px solid #6de5cb;
+    border-radius: 4px;
+    color: #e5e2e1;
+    font-family: "Inter", sans-serif;
     font-size: 12px;
-    padding: 2px 6px;
+    padding: 4px 8px;
     outline: none;
+    box-shadow: 0 0 8px rgba(109, 229, 203, 0.15);
   }
 
   .new-task {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
-    padding-top: 6px;
-    border-top: 1px solid #252525;
+    padding-top: 10px;
+    margin-top: 8px;
   }
 
   .new-input {
     flex: 1;
-    background: #252525;
-    border: 1px solid #333;
+    background: #0e0e0e;
+    border: 1px solid rgba(61, 73, 70, 0.1);
     border-radius: 4px;
-    color: #d4d4d4;
-    font-family: inherit;
+    color: #e5e2e1;
+    font-family: "Inter", sans-serif;
     font-size: 12px;
-    padding: 5px 10px;
+    padding: 6px 10px;
     outline: none;
+    transition: border-color 0.2s;
   }
 
   .new-input:focus {
-    border-color: #4ec9b0;
-  }
-  .new-input::placeholder {
-    color: #3a3a3a;
+    border-color: #6de5cb;
+    box-shadow: 0 0 6px rgba(109, 229, 203, 0.12);
   }
 
-  .add-btn {
-    background: #3a3a3a;
-    color: #d4d4d4;
-    border: 1px solid #555;
+  .new-input::placeholder {
+    color: #3d4946;
+  }
+
+  .btn-add-small {
+    background: transparent;
+    color: #6de5cb;
+    border: 1px solid rgba(61, 73, 70, 0.3);
     border-radius: 4px;
-    padding: 5px 14px;
-    font-size: 12px;
+    padding: 6px 14px;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
     cursor: pointer;
-    font-family: inherit;
+    transition: all 0.15s;
     min-width: unset;
   }
 
-  .add-btn:disabled {
+  .btn-add-small:hover:not(:disabled) {
+    background: rgba(109, 229, 203, 0.1);
+  }
+
+  .btn-add-small:disabled {
     opacity: 0.3;
     cursor: default;
+  }
+
+  /* ── Config Card ── */
+  .config-card {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    height: fit-content;
+  }
+
+  .config-title {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: #bccac4;
+    margin: 0 0 10px;
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .preset-btn {
+    padding: 10px 8px;
+    background: #0e0e0e;
+    border: 1px solid rgba(61, 73, 70, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.15s;
+    min-width: unset;
+  }
+
+  .preset-btn:hover {
+    border-color: rgba(109, 229, 203, 0.2);
+  }
+
+  .preset-btn.active {
+    background: #2a2a2a;
+    border-color: rgba(109, 229, 203, 0.3);
+  }
+
+  .preset-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    color: #bccac4;
+    letter-spacing: 0.05em;
+  }
+
+  .preset-btn.active .preset-label {
+    color: #6de5cb;
+  }
+
+  .preset-duration {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #e5e2e1;
   }
 </style>

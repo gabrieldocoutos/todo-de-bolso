@@ -4,8 +4,7 @@
   import { listen } from "@tauri-apps/api/event";
   import Notes from "./Notes.svelte";
   import Pomodoro from "./Pomodoro.svelte";
-  import BlockedWebsites from "./BlockedWebsites.svelte";
-  import BlockedApps from "./BlockedApps.svelte";
+  import FocusRestrictions from "./FocusRestrictions.svelte";
   import Todo from "./Todo.svelte";
   import ShortcutGuide from "./ShortcutGuide.svelte";
   import { CircleHelp } from "lucide-svelte";
@@ -271,16 +270,13 @@
   {:else if activeTab === "pomodoro"}
     <Pomodoro isActive={true} />
   {:else if activeTab === "blocked"}
-    <div class="blocked-container">
-      <div class="blocked-section">
-        <h3 class="section-title">Websites</h3>
-        <BlockedWebsites domains={blockedDomains} onSave={saveBlocked} />
-      </div>
-      <div class="blocked-section">
-        <h3 class="section-title">Apps</h3>
-        <BlockedApps apps={blockedApps} onSave={saveBlockedApps} />
-      </div>
-    </div>
+    <FocusRestrictions
+      domains={blockedDomains}
+      apps={blockedApps}
+      onSaveDomains={saveBlocked}
+      onSaveApps={saveBlockedApps}
+      focusActive={blockingActive}
+    />
   {:else}
     <Todo />
   {/if}
@@ -629,29 +625,4 @@
     background: #3a3a3a;
   }
 
-  .blocked-container {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .blocked-section {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .section-title {
-    font-size: 11px;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 8px 20px 0;
-    margin: 0;
-    flex-shrink: 0;
-    font-weight: 500;
-  }
 </style>

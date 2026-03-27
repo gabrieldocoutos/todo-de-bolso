@@ -33,14 +33,16 @@ struct PomodoroState {
     active_task_id: Option<i64>,
     active_task_elapsed: u32,
     focus_active: bool,
+    work_secs: u32,
+    break_secs: u32,
 }
 
 type PomodoroShared = Arc<Mutex<PomodoroState>>;
 
 fn update_tray_from_state(app: &tauri::AppHandle, s: &PomodoroState) {
-    let title = if !s.running && s.mode == "work" && s.remaining == WORK_SECS {
+    let title = if !s.running && s.mode == "work" && s.remaining == s.work_secs {
         String::new()
-    } else if !s.running && s.mode == "break" && s.remaining == BREAK_SECS {
+    } else if !s.running && s.mode == "break" && s.remaining == s.break_secs {
         String::new()
     } else {
         let m = (s.remaining + 59) / 60; // round up so it shows 1 until truly 0
@@ -689,7 +691,7 @@ fn pomodoro_reset(
         }
         s.active_task_elapsed = 0;
         s.running = false;
-        s.remaining = if s.mode == "work" { WORK_SECS } else { BREAK_SECS };
+        s.remaining = if s.mode == "work" { s.work_secs } else { s.break_secs };
         (s.clone(), flush_id, flush_elapsed)
     };
     if let Some(tid) = flush_id {
@@ -713,11 +715,32 @@ fn pomodoro_skip_break(app: tauri::AppHandle, state: tauri::State<PomodoroShared
         let mut s = state.lock().unwrap();
         s.running = false;
         s.mode = "work".into();
-        s.remaining = WORK_SECS;
+        s.remaining = s.work_secs;
         s.clone()
     };
     update_tray_from_state(&app, &s);
     app.emit("pomodoro-tick", &s).ok();
+}
+
+#[tauri::command]
+fn set_pomodoro_config(
+    work_secs: u32,
+    break_secs: u32,
+    app: tauri::AppHandle,
+    state: tauri::State<PomodoroShared>,
+) -> PomodoroState {
+    let s = {
+        let mut s = state.lock().unwrap();
+        s.work_secs = work_secs;
+        s.break_secs = break_secs;
+        if !s.running {
+            s.remaining = if s.mode == "work" { work_secs } else { break_secs };
+        }
+        s.clone()
+    };
+    update_tray_from_state(&app, &s);
+    app.emit("pomodoro-tick", &s).ok();
+    s
 }
 
 #[tauri::command]
@@ -735,6 +758,8 @@ pub fn run() {
         active_task_id: None,
         active_task_elapsed: 0,
         focus_active: false,
+        work_secs: WORK_SECS,
+        break_secs: BREAK_SECS,
     }));
 
     tauri::Builder::default()
@@ -839,10 +864,10 @@ pub fn run() {
                                         s.active_task_elapsed = 0;
                                     }
                                     s.mode = "break".into();
-                                    s.remaining = BREAK_SECS;
+                                    s.remaining = s.break_secs;
                                 } else {
                                     s.mode = "work".into();
-                                    s.remaining = WORK_SECS;
+                                    s.remaining = s.work_secs;
                                 }
                             }
                         }
@@ -897,6 +922,7 @@ pub fn run() {
             pomodoro_toggle,
             pomodoro_reset,
             pomodoro_skip_break,
+            set_pomodoro_config,
             get_reminders,
             create_reminder,
             complete_reminder,
