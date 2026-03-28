@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { Circle, Check, ChevronDown, ChevronRight, X, RefreshCw, Square, CheckSquare } from "lucide-svelte";
+  import { Circle, Check, ChevronDown, ChevronRight, X, Plus, Square, CheckSquare } from "lucide-svelte";
   import PageHeader from "$lib/PageHeader.svelte";
 
   type Reminder = { id: number; title: string };
@@ -94,7 +94,7 @@
 
   <form class="add-form" onsubmit={(e) => { e.preventDefault(); create(); }}>
     <div class="input-wrap">
-      <span class="input-icon"><RefreshCw size={14} /></span>
+      <span class="input-icon"><Plus size={14} /></span>
       <input
         class="add-input"
         type="text"
