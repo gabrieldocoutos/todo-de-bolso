@@ -31,6 +31,11 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i '' "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
+
       - name: Install frontend dependencies
         run: pnpm install
 
@@ -41,8 +46,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: "Mezame v__VERSION__"
+          tagName: ${{ github.ref_name }}
+          releaseName: "Mezame ${{ github.ref_name }}"
           releaseBody: "See the assets below to download and install."
           releaseDraft: false
           prerelease: false
