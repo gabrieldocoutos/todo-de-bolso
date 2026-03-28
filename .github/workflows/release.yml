@@ -10,6 +10,7 @@ jobs:
     permissions:
       contents: write
     runs-on: macos-latest
+    environment: TAURI_SIGNING_PRIVATE_KEY
     steps:
       - uses: actions/checkout@v4
 
